@@ -236,9 +236,21 @@ def create_app():
             if disk_path.exists():
                 disk_path.unlink(missing_ok=True)
 
-            return "", 204
+            return jsonify({"message": "Sikeres törlés."}), 200
         except Exception:
             return jsonify({"message": "Hiba a törlés közben."}), 500
+
+    @app.errorhandler(404)
+    def not_found(error):
+        if request.path.startswith("/api/"):
+            return jsonify({"message": "A kért API végpont nem található."}), 404
+        return error
+
+    @app.errorhandler(413)
+    def payload_too_large(_error):
+        if request.path.startswith("/api/"):
+            return jsonify({"message": "A feltöltött fájl túl nagy."}), 413
+        return jsonify({"message": "A feltöltött fájl túl nagy."}), 413
 
     return app
 
