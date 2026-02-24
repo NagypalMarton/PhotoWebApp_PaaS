@@ -1,0 +1,348 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: photowebapp-config
+  labels:
+    app: photowebapp
+data:
+  DB_HOST: db
+  DB_PORT: "3306"
+  DB_NAME: gallery
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: photowebapp-app-secret
+  labels:
+    app: photowebapp
+type: Opaque
+stringData:
+  SECRET_KEY: change-me-in-production
+  DB_USER: gallery_user
+  DB_PASSWORD: gallery_password
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: photowebapp-db-secret
+  labels:
+    app: photowebapp
+type: Opaque
+stringData:
+  MYSQL_ROOT_PASSWORD: rootpassword
+  MYSQL_USER: gallery_user
+  MYSQL_PASSWORD: gallery_password
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: photowebapp-db-init
+  labels:
+    app: photowebapp
+data:
+  init.sql: |
+    CREATE TABLE IF NOT EXISTS users (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      username VARCHAR(50) NOT NULL,
+      password_hash VARCHAR(255) NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      UNIQUE KEY uq_users_username (username)
+    );
+
+    CREATE TABLE IF NOT EXISTS photos (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      owner_user_id BIGINT UNSIGNED NOT NULL,
+      name VARCHAR(40) NOT NULL,
+      upload_datetime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      file_path_or_url VARCHAR(255) NOT NULL,
+      PRIMARY KEY (id),
+      KEY idx_photos_name (name),
+      KEY idx_photos_upload_datetime (upload_datetime),
+      CONSTRAINT fk_photos_owner FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: photowebapp-db-pvc
+  labels:
+    app: photowebapp
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: photowebapp-uploads-pvc
+  labels:
+    app: photowebapp
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db
+  labels:
+    app: photowebapp
+    component: db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: photowebapp
+      component: db
+  template:
+    metadata:
+      labels:
+        app: photowebapp
+        component: db
+    spec:
+      containers:
+        - name: db
+          image: bitnami/mysql:8.4
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3306
+              name: mysql
+          env:
+            - name: MYSQL_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: photowebapp-config
+                  key: DB_NAME
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: photowebapp-db-secret
+                  key: MYSQL_ROOT_PASSWORD
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: photowebapp-db-secret
+                  key: MYSQL_USER
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: photowebapp-db-secret
+                  key: MYSQL_PASSWORD
+          readinessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -ec
+                - mysqladmin ping -uroot -p"$MYSQL_ROOT_PASSWORD"
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -ec
+                - mysqladmin ping -uroot -p"$MYSQL_ROOT_PASSWORD"
+            initialDelaySeconds: 45
+            periodSeconds: 20
+          volumeMounts:
+            - name: db-data
+              mountPath: /bitnami/mysql
+            - name: db-init
+              mountPath: /docker-entrypoint-initdb.d/init.sql
+              subPath: init.sql
+      volumes:
+        - name: db-data
+          persistentVolumeClaim:
+            claimName: photowebapp-db-pvc
+        - name: db-init
+          configMap:
+            name: photowebapp-db-init
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+  labels:
+    app: photowebapp
+    component: db
+spec:
+  selector:
+    app: photowebapp
+    component: db
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: 3306
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  labels:
+    app: photowebapp
+    component: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: photowebapp
+      component: backend
+  template:
+    metadata:
+      labels:
+        app: photowebapp
+        component: backend
+    spec:
+      containers:
+        - name: backend
+          image: ghcr.io/your-org/photowebapp-backend:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: PORT
+              value: "3000"
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: photowebapp-config
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: photowebapp-config
+                  key: DB_PORT
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: photowebapp-config
+                  key: DB_NAME
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: photowebapp-app-secret
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: photowebapp-app-secret
+                  key: DB_PASSWORD
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: photowebapp-app-secret
+                  key: SECRET_KEY
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          volumeMounts:
+            - name: uploads
+              mountPath: /app/uploads
+      volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: photowebapp-uploads-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  labels:
+    app: photowebapp
+    component: backend
+spec:
+  selector:
+    app: photowebapp
+    component: backend
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  labels:
+    app: photowebapp
+    component: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: photowebapp
+      component: frontend
+  template:
+    metadata:
+      labels:
+        app: photowebapp
+        component: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: ghcr.io/your-org/photowebapp-frontend:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  labels:
+    app: photowebapp
+    component: frontend
+spec:
+  selector:
+    app: photowebapp
+    component: frontend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: photowebapp
+  labels:
+    app: photowebapp
+spec:
+  to:
+    kind: Service
+    name: frontend
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

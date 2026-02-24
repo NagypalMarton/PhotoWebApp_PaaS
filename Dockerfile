@@ -9,6 +9,9 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py ./
+RUN mkdir -p /app/uploads && chgrp -R 0 /app && chmod -R g=u /app
+
+USER 1001
 
 EXPOSE 3000
 

@@ -124,7 +124,18 @@ Tervezett éles környezet:
 - HTTPS publikus route,
 - GitHub-ból automatikus build/deploy pipeline.
 
-Szükséges OpenShift erőforrások:
+OpenShift erőforrásfájlok elkészítve:
+
+- [openshift/openshift-all.yaml](openshift/openshift-all.yaml)
+- [openshift/README.md](openshift/README.md)
+
+Telepítés röviden:
+
+```bash
+oc apply -f openshift/openshift-all.yaml
+```
+
+Szükséges OpenShift erőforrások (a YAML-ben):
 
 - app Deployment,
 - db Deployment/StatefulSet (vagy menedzselt DB szolgáltatás),
