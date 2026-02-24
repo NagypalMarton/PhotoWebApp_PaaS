@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PhotoWebApp (Flask)</title>
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+    integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+    crossorigin="anonymous"
+  />
+</head>
+<body class="bg-body-tertiary">
+  <main class="container py-4">
+    <div class="row justify-content-center">
+      <div class="col-12 col-xl-10">
+        <h1 class="h3 mb-3">PhotoWebApp – Flask</h1>
+        <p class="text-body-secondary mb-4">
+          Követelmények: regisztráció/bejelentkezés/kijelentkezés, feltöltés/törlés jogosultsággal, lista és rendezés.
+        </p>
+        <div id="feedback" class="alert d-none" role="alert"></div>
+
+        <div class="card shadow-sm mb-3">
+          <div class="card-body">
+            <h2 class="h5 mb-3">Felhasználókezelés</h2>
+            <div class="row g-2 align-items-end">
+              <div class="col-12 col-md-4">
+                <label for="username" class="form-label">Felhasználónév</label>
+                <input id="username" class="form-control" placeholder="Felhasználónév" />
+              </div>
+              <div class="col-12 col-md-4">
+                <label for="password" class="form-label">Jelszó</label>
+                <input id="password" type="password" class="form-control" placeholder="Jelszó" />
+              </div>
+              <div class="col-12 col-md-4">
+                <div class="d-flex flex-wrap gap-2">
+                  <button id="registerBtn" class="btn btn-outline-primary">Regisztráció</button>
+                  <button id="loginBtn" class="btn btn-primary">Belépés</button>
+                  <button id="logoutBtn" class="btn btn-outline-secondary">Kilépés</button>
+                </div>
+              </div>
+            </div>
+            <div id="authStatus" class="text-body-secondary small mt-3">Nincs bejelentkezve.</div>
+          </div>
+        </div>
+
+        <div class="card shadow-sm mb-3">
+          <div class="card-body">
+            <h2 class="h5 mb-3">Kép feltöltése</h2>
+            <div class="row g-2 align-items-end">
+              <div class="col-12 col-md-6">
+                <label for="photoName" class="form-label">Kép neve</label>
+                <input id="photoName" maxlength="40" class="form-control" placeholder="Kép neve (max. 40 karakter)" />
+              </div>
+              <div class="col-12 col-md-4">
+                <label for="photoFile" class="form-label">Képfájl</label>
+                <input id="photoFile" type="file" class="form-control" accept="image/*" />
+              </div>
+              <div class="col-12 col-md-2 d-grid">
+                <button id="uploadBtn" class="btn btn-success">Feltöltés</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card shadow-sm mb-3">
+          <div class="card-body">
+            <h2 class="h5 mb-3">Képek</h2>
+            <div class="row g-2 align-items-end mb-3">
+              <div class="col-12 col-md-4">
+                <label for="sort" class="form-label">Rendezés</label>
+                <select id="sort" class="form-select">
+                  <option value="date">Dátum</option>
+                  <option value="name">Név</option>
+                </select>
+              </div>
+              <div class="col-12 col-md-4">
+                <label for="order" class="form-label">Sorrend</label>
+                <select id="order" class="form-select">
+                  <option value="desc">Csökkenő</option>
+                  <option value="asc">Növekvő</option>
+                </select>
+              </div>
+              <div class="col-12 col-md-4 d-grid">
+                <button id="refreshBtn" class="btn btn-outline-dark">Frissítés</button>
+              </div>
+            </div>
+            <ul id="photoList" class="list-group"></ul>
+          </div>
+        </div>
+
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h2 class="h5 mb-3">Kiválasztott kép</h2>
+            <div id="selectedMeta" class="text-body-secondary mb-3">Nincs kiválasztott kép.</div>
+            <img id="selectedImage" alt="Kiválasztott kép" class="img-fluid rounded border d-none" />
+            <div class="mt-3">
+              <button id="deleteBtn" class="btn btn-danger" disabled>Törlés</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const state = {
+      me: null,
+      photos: [],
+      selected: null
+    };
+
+    const authStatus = document.getElementById('authStatus');
+    const photoList = document.getElementById('photoList');
+    const selectedMeta = document.getElementById('selectedMeta');
+    const selectedImage = document.getElementById('selectedImage');
+    const deleteBtn = document.getElementById('deleteBtn');
+    const feedback = document.getElementById('feedback');
+
+    function showMessage(message, type = 'success') {
+      feedback.className = `alert alert-${type}`;
+      feedback.textContent = message;
+      feedback.classList.remove('d-none');
+    }
+
+    function clearMessage() {
+      feedback.classList.add('d-none');
+      feedback.textContent = '';
+    }
+
+    async function api(url, options = {}) {
+      const res = await fetch(url, {
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+        ...options
+      });
+
+      if (res.status === 204) return null;
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'Hiba történt.');
+      return data;
+    }
+
+    async function loadMe() {
+      const me = await api('/api/auth/me', { headers: {} });
+      state.me = me.authenticated ? me : null;
+      authStatus.textContent = state.me
+        ? `Bejelentkezve: ${state.me.username}`
+        : 'Nincs bejelentkezve.';
+      deleteBtn.disabled = !state.selected || !state.me || state.selected.owner_user_id !== state.me.id;
+    }
+
+    async function loadPhotos() {
+      const sort = document.getElementById('sort').value;
+      const order = document.getElementById('order').value;
+      state.photos = await api(`/api/photos?sort=${encodeURIComponent(sort)}&order=${encodeURIComponent(order)}`);
+      renderList();
+    }
+
+    function renderList() {
+      photoList.innerHTML = '';
+      state.photos.forEach((photo) => {
+        const li = document.createElement('li');
+        li.className = 'list-group-item list-group-item-action';
+        li.textContent = `${photo.name} — ${photo.upload_datetime}`;
+        li.onclick = () => selectPhoto(photo.id);
+        photoList.appendChild(li);
+      });
+
+      if (state.photos.length === 0) {
+        const li = document.createElement('li');
+        li.className = 'list-group-item text-body-secondary';
+        li.textContent = 'Nincs feltöltött kép.';
+        photoList.appendChild(li);
+      }
+    }
+
+    function selectPhoto(photoId) {
+      state.selected = state.photos.find((item) => item.id === photoId) || null;
+      if (!state.selected) {
+        selectedMeta.textContent = 'Nincs kiválasztott kép.';
+        selectedImage.classList.add('d-none');
+        deleteBtn.disabled = true;
+        return;
+      }
+
+      selectedMeta.textContent = `Név: ${state.selected.name} | Dátum: ${state.selected.upload_datetime}`;
+      selectedImage.src = state.selected.image_url;
+      selectedImage.classList.remove('d-none');
+      deleteBtn.disabled = !state.me || state.selected.owner_user_id !== state.me.id;
+    }
+
+    async function handleRegister() {
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      await api('/api/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({ username, password })
+      });
+      await loadMe();
+      showMessage('Sikeres regisztráció.');
+    }
+
+    async function handleLogin() {
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      await api('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ username, password })
+      });
+      await loadMe();
+      showMessage('Sikeres bejelentkezés.');
+    }
+
+    async function handleLogout() {
+      await api('/api/auth/logout', { method: 'POST' });
+      await loadMe();
+      showMessage('Kijelentkezve.', 'secondary');
+    }
+
+    async function handleUpload() {
+      const name = document.getElementById('photoName').value.trim();
+      const fileInput = document.getElementById('photoFile');
+      const file = fileInput.files[0];
+      if (!name || !file) {
+        showMessage('A név és a fájl kötelező.', 'warning');
+        return;
+      }
+
+      const form = new FormData();
+      form.append('name', name);
+      form.append('photo', file);
+
+      const res = await fetch('/api/photos', {
+        method: 'POST',
+        body: form,
+        credentials: 'include'
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'Feltöltési hiba.');
+      }
+
+      document.getElementById('photoName').value = '';
+      fileInput.value = '';
+      await loadPhotos();
+      showMessage('Sikeres feltöltés.');
+    }
+
+    async function handleDelete() {
+      if (!state.selected) {
+        return;
+      }
+
+      const res = await fetch(`/api/photos/${state.selected.id}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Törlési hiba.');
+      }
+
+      state.selected = null;
+      selectedMeta.textContent = 'Nincs kiválasztott kép.';
+      selectedImage.classList.add('d-none');
+      await loadPhotos();
+      await loadMe();
+      showMessage('Sikeres törlés.');
+    }
+
+    document.getElementById('registerBtn').addEventListener('click', () => run(handleRegister));
+    document.getElementById('loginBtn').addEventListener('click', () => run(handleLogin));
+    document.getElementById('logoutBtn').addEventListener('click', () => run(handleLogout));
+    document.getElementById('uploadBtn').addEventListener('click', () => run(handleUpload));
+    document.getElementById('deleteBtn').addEventListener('click', () => run(handleDelete));
+    document.getElementById('refreshBtn').addEventListener('click', () => run(loadPhotos));
+
+    async function run(fn) {
+      try {
+        clearMessage();
+        await fn();
+      } catch (error) {
+        showMessage(error.message, 'danger');
+      }
+    }
+
+    (async () => {
+      await loadMe();
+      await loadPhotos();
+    })();
+  </script>
+</body>
+</html>

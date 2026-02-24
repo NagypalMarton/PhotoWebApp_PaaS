@@ -1,13 +1,15 @@
-FROM node:20-alpine
+FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY package.json ./
-RUN npm install --omit=dev
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
-COPY src ./src
-COPY public ./public
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app.py ./
 
 EXPOSE 3000
 
-CMD ["npm", "start"]
+CMD ["gunicorn", "--bind", "0.0.0.0:3000", "app:app"]

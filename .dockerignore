@@ -1,6 +1,9 @@
-node_modules
-npm-debug.log
-Dockerfile*
-docker-compose.yml
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+uploads/
 .git
 .gitignore
