@@ -142,6 +142,8 @@ Telepítés röviden:
 
 ```bash
 oc apply -f openshift/openshift-all.yaml
+oc start-build photowebapp-backend --follow
+oc start-build photowebapp-frontend --follow
 ```
 
 Szükséges OpenShift erőforrások (a YAML-ben):

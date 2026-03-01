@@ -6,41 +6,42 @@ Ez a mappa a PhotoWebApp OpenShift (PaaS) deploy erőforrásait tartalmazza.
 
 - OpenShift projekt (namespace)
 - `oc` CLI bejelentkezve
-- Publikus image repository a backend és frontend image-ekhez (pl. GHCR / Quay)
+- A klaszter elérje a GitHub repository-t
 
-## 1) Image-ek build és push
-
-Az `openshift-all.yaml` alapértelmezetten az alábbi image-ekre mutat:
-
-- `ghcr.io/nagypalmarton/photowebapp-backend:latest`
-- `ghcr.io/nagypalmarton/photowebapp-frontend:latest`
-
-Ha más registry-t használsz, ezeket az értékeket írd át.
-
-Példa lokális build + push:
-
-```bash
-docker build -t ghcr.io/nagypalmarton/photowebapp-backend:latest .
-docker push ghcr.io/nagypalmarton/photowebapp-backend:latest
-
-docker build -t ghcr.io/nagypalmarton/photowebapp-frontend:latest ./frontend
-docker push ghcr.io/nagypalmarton/photowebapp-frontend:latest
-```
-
-## 2) Secret értékek beállítása
+## 1) Secret értékek beállítása
 
 A `openshift-all.yaml` fájlban a Secret objektumokban `CHANGE_ME_*` placeholder értékek vannak.
 Telepítés előtt ezeket kötelező erős, egyedi értékekre cserélni.
 
-## 3) Deploy
+## 2) Erőforrások telepítése
 
 ```bash
 oc apply -f openshift/openshift-all.yaml
 ```
 
+Ez létrehozza többek között a következőket:
+
+- `ImageStream` a backendhez és frontendhez,
+- `BuildConfig` a GitHub forrásból történő buildhez,
+- `DeploymentConfig` image-change triggerrel,
+- `Service` + `Route` + PVC + DB deployment.
+
+## 3) Build indítása
+
+Első telepítés után indítsd el a buildet (vagy triggereld webhookkal):
+
+```bash
+oc start-build photowebapp-backend --follow
+oc start-build photowebapp-frontend --follow
+```
+
+Sikeres build után a `DeploymentConfig` automatikusan frissít és elindítja a rolloutot.
+
 ## 4) Ellenőrzés
 
 ```bash
+oc get builds
+oc get is
 oc get pods
 oc get svc
 oc get route

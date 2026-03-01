@@ -88,6 +88,67 @@ spec:
     requests:
       storage: 5Gi
 ---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: photowebapp-backend
+  labels:
+    app: photowebapp
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: photowebapp-frontend
+  labels:
+    app: photowebapp
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: photowebapp-backend
+  labels:
+    app: photowebapp
+    component: backend
+spec:
+  source:
+    type: Git
+    git:
+      uri: https://github.com/NagypalMarton/PhotoWebApp_PaaS.git
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Dockerfile
+  output:
+    to:
+      kind: ImageStreamTag
+      name: photowebapp-backend:latest
+  triggers:
+    - type: ConfigChange
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: photowebapp-frontend
+  labels:
+    app: photowebapp
+    component: frontend
+spec:
+  source:
+    type: Git
+    git:
+      uri: https://github.com/NagypalMarton/PhotoWebApp_PaaS.git
+    contextDir: frontend
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Dockerfile
+  output:
+    to:
+      kind: ImageStreamTag
+      name: photowebapp-frontend:latest
+  triggers:
+    - type: ConfigChange
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -181,8 +242,8 @@ spec:
       port: 3306
       targetPort: 3306
 ---
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: apps.openshift.io/v1
+kind: DeploymentConfig
 metadata:
   name: backend
   labels:
@@ -191,9 +252,20 @@ metadata:
 spec:
   replicas: 1
   selector:
-    matchLabels:
-      app: photowebapp
-      component: backend
+    app: photowebapp
+    component: backend
+  strategy:
+    type: Rolling
+  triggers:
+    - type: ConfigChange
+    - type: ImageChange
+      imageChangeParams:
+        automatic: true
+        containerNames:
+          - backend
+        from:
+          kind: ImageStreamTag
+          name: photowebapp-backend:latest
   template:
     metadata:
       labels:
@@ -202,8 +274,8 @@ spec:
     spec:
       containers:
         - name: backend
-          image: ghcr.io/nagypalmarton/photowebapp-backend:latest
-          imagePullPolicy: Always
+          image: photowebapp-backend:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
               name: http
@@ -276,8 +348,8 @@ spec:
       port: 3000
       targetPort: 3000
 ---
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: apps.openshift.io/v1
+kind: DeploymentConfig
 metadata:
   name: frontend
   labels:
@@ -286,9 +358,20 @@ metadata:
 spec:
   replicas: 1
   selector:
-    matchLabels:
-      app: photowebapp
-      component: frontend
+    app: photowebapp
+    component: frontend
+  strategy:
+    type: Rolling
+  triggers:
+    - type: ConfigChange
+    - type: ImageChange
+      imageChangeParams:
+        automatic: true
+        containerNames:
+          - frontend
+        from:
+          kind: ImageStreamTag
+          name: photowebapp-frontend:latest
   template:
     metadata:
       labels:
@@ -297,8 +380,8 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: ghcr.io/nagypalmarton/photowebapp-frontend:latest
-          imagePullPolicy: Always
+          image: photowebapp-frontend:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
               name: http
