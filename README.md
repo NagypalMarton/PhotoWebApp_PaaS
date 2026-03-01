@@ -37,6 +37,12 @@ oc get route photowebapp -o jsonpath='{.spec.host}'
 
 Részletes lépések: [openshift/README.md](openshift/README.md).
 
+### Devfile import (egylépéses stack deploy)
+
+A gyökérben található [devfile.yaml](devfile.yaml) importálás után az `up` parancs egy lépésben alkalmazza az összes OpenShift réteget (`openshift/openshift-all.yaml`).
+
+A devfile explicit endpointtal rögzíti a `targetPort: 8080` beállítást importáláskor.
+
 ## 4) API összefoglaló
 
 - `GET /api/health`
