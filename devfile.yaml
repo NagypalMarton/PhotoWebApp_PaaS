@@ -2,6 +2,13 @@ schemaVersion: 2.2.0
 metadata:
   name: photowebapp-paas
 components:
+  - name: import-build-image
+    image:
+      imageName: image-registry.openshift-image-registry.svc:5000/${PROJECT_NAME}/photowebapp-devfile-import:latest
+      autoBuild: false
+      dockerfile:
+        uri: .devfile/Dockerfile
+        buildContext: .
   - name: openshift-stack
     kubernetes:
       uri: openshift/openshift-all.yaml
@@ -16,11 +23,20 @@ components:
           exposure: public
           protocol: http
 commands:
+  - id: build-import-image
+    apply:
+      component: import-build-image
   - id: deploy-openshift-stack
     apply:
       component: openshift-stack
+  - id: deploy
+    composite:
+      commands:
+        - build-import-image
+        - deploy-openshift-stack
+      parallel: false
   - id: up
     composite:
       commands:
-        - deploy-openshift-stack
+        - deploy
       parallel: false
