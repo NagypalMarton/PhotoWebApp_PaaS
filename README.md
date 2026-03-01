@@ -1,142 +1,27 @@
 # PhotoWebApp_PaaS
 
-Felhőalapú elosztott rendszerek laboratórium (2026) projekt: fényképalbum alkalmazás publikus PaaS környezetre.
+Felhőalapú elosztott rendszerek laboratórium (2026) projekt: fényképalbum alkalmazás OpenShift (PaaS) környezetre.
 
-## 1) Projektcél és beadási kontextus
+## 1) Projektcél
 
-A feladat célja egy PaaS-on futó fényképalbum alkalmazás elkészítése, az alábbi kulcskövetelményekkel:
+A projekt célja egy OpenShift-en futó fotóalbum alkalmazás, az alábbi funkciókkal:
 
 - kép feltöltés és törlés,
 - képek neve (max. 40 karakter) és feltöltési dátuma,
 - listázás és rendezés név/dátum szerint,
 - listaelemből képmegjelenítés,
 - felhasználókezelés (regisztráció, belépés, kilépés),
-- feltöltés/törlés csak bejelentkezett felhasználónak,
-- GitHub push-ra automatikus build.
+- feltöltés/törlés csak bejelentkezett felhasználónak.
 
-## 2) Jelenlegi implementáció (repo állapot)
-
-Az aktuális verzió 3 konténeres felépítésben fut Docker Compose környezetben:
-
-- MySQL adatbázis konténer (`db`),
-- Python + Flask backend konténer (`backend`),
-- Nginx alapú frontend konténer (`frontend`, Bootstrap v5.3 UI, reverse proxy `/api` és `/uploads` útvonalakra),
-- lokális fájltárolás `uploads/` mappában.
-
-Megvalósított funkciók:
-
-- felhasználó regisztráció,
-- bejelentkezés és kijelentkezés,
-- kép feltöltése (név + fájl),
-- képek listázása névvel és dátummal,
-- rendezés név és dátum szerint,
-- képmegtekintés listaelemből,
-- kép törlése (csak tulajdonos/bejelentkezett felhasználó),
-- 40 karakternél hosszabb név elutasítása.
-
-## 3) Követelmény-megfelelés (gyors áttekintés)
-
-| Követelmény | Állapot | Megjegyzés |
-| --- | --- | --- |
-| Kép feltöltés/törlés | Kész | Auth-hoz kötött |
-| Név (max 40) + dátum | Kész | Validáció és tárolás működik |
-| Listázás + rendezés (név/dátum) | Kész | API query paraméterekkel |
-| Listaelemből képmegjelenítés | Kész | `image_url` alapján |
-| Felhasználókezelés | Kész | Regisztráció, login, logout |
-| Build automatikus indítás GitHub-ról | Nincs kész | CI workflow szükséges |
-| Végleges külön DB szerver | Nincs kész | 2. beadási követelmény |
-
-## 4) Technikai felépítés
+## 2) Felépítés
 
 - **Backend:** Flask API ([app.py](app.py))
-- **DB kapcsolat:** PyMySQL kapcsolatkezelés ([app.py](app.py))
-- **Séma:** `users` és `photos` táblák ([db/init.sql](db/init.sql))
-- **Backend konténer:** [Dockerfile](Dockerfile)
-- **Frontend konténer:** [frontend/Dockerfile](frontend/Dockerfile), [frontend/nginx.conf](frontend/nginx.conf), [frontend/index.html](frontend/index.html)
-- **Konténeres orchestration:** [docker-compose.yml](docker-compose.yml)
+- **Adatbázis séma:** [db/init.sql](db/init.sql)
+- **Frontend:** [frontend/index.html](frontend/index.html), [frontend/nginx-cfg/default.conf](frontend/nginx-cfg/default.conf)
+- **OpenShift erőforrások:** [openshift/openshift-all.yaml](openshift/openshift-all.yaml)
+- **OpenShift telepítési leírás:** [openshift/README.md](openshift/README.md)
 
-## 5) Lokális futtatás (Docker Compose)
-
-### Előfeltételek
-
-- Docker Desktop (Compose támogatással)
-- kitöltött `.env` fájl (mintához: `.env.example`)
-
-Első futtatás előtt (PowerShell):
-
-```powershell
-Copy-Item .env.example .env
-```
-
-Majd a `.env` fájlban cseréld a `CHANGE_ME_*` értékeket erős, egyedi titkokra.
-
-### Indítás
-
-```bash
-docker compose up --build
-```
-
-Elérés:
-
-- alkalmazás (frontend): <http://localhost:8080>
-- health endpoint (frontend proxyn keresztül): <http://localhost:8080/api/health>
-
-### Leállítás
-
-```bash
-docker compose down
-```
-
-### Adatbázis teljes újrainicializálása (minden adat törlődik)
-
-```bash
-docker compose down -v
-docker compose up --build
-```
-
-## 6) API összefoglaló
-
-### Egészségellenőrzés
-
-- `GET /api/health`
-
-### Auth
-
-- `POST /api/auth/register`
-- `POST /api/auth/login`
-- `POST /api/auth/logout`
-- `GET /api/auth/me`
-
-### Képek listázása
-
-- `GET /api/photos?sort=name|date&order=asc|desc`
-
-### Kép feltöltése
-
-- `POST /api/photos` (multipart/form-data)
-  - mezők: `name`, `photo`
-  - fájlméret limit: max. 100 MB
-
-### Kép törlése
-
-- `DELETE /api/photos/:id`
-
-## 7) OpenShift célkörnyezet (2. beadás irány)
-
-Tervezett éles környezet:
-
-- PaaS: OpenShift,
-- külön adatbázis-szerver (kötelező),
-- backend több példányban futtatható,
-- HTTPS publikus route,
-- GitHub-ból automatikus build/deploy pipeline.
-
-OpenShift erőforrásfájlok elkészítve:
-
-- [openshift/openshift-all.yaml](openshift/openshift-all.yaml)
-- [openshift/README.md](openshift/README.md)
-
-Telepítés röviden:
+## 3) OpenShift telepítés (röviden)
 
 ```bash
 oc apply -f openshift/openshift-all.yaml
@@ -144,29 +29,25 @@ oc start-build photowebapp-backend --follow
 oc start-build photowebapp-frontend --follow
 ```
 
-Szükséges OpenShift erőforrások (a YAML-ben):
+Route host lekérdezése:
 
-- app Deployment,
-- db Deployment/StatefulSet (vagy menedzselt DB szolgáltatás),
-- Service + Route,
-- Secret (DB jelszó),
-- ConfigMap (DB host/port/name),
-- PVC a fájlokhoz vagy objektumtár (S3-kompatibilis) a képekhez.
+```bash
+oc get route photowebapp -o jsonpath='{.spec.host}'
+```
 
-## 8) Teendők a teljes követelményszinthez
+Részletes lépések: [openshift/README.md](openshift/README.md).
 
-Kötelezően hátralévő elemek:
+## 4) API összefoglaló
 
-1. CI pipeline létrehozása GitHub push eseményre (automatikus build).
-2. OpenShift telepítés és publikus URL-es bemutatás.
-3. Végleges változat: külön adatbázis-szerveres, skálázható, többrétegű üzemeltetés.
+- `GET /api/health`
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `GET /api/auth/me`
+- `GET /api/photos?sort=name|date&order=asc|desc`
+- `POST /api/photos` (multipart/form-data: `name`, `photo`, max. 100 MB)
+- `DELETE /api/photos/:id`
 
-## 9) Benyújtandó elemek (2. beadás)
+## 5) Megjegyzés
 
-1. Rövid dokumentáció a végleges megoldásról:
-   - választott PaaS környezet,
-   - alkalmazásrétegek,
-   - rétegek közötti kapcsolatok.
-2. A megoldás forrásfájljai GitHub-on (repository linkkel).
-3. Működő alkalmazás bemutatása PaaS környezetben.
-4. Ha a végleges változat már korábban bemutatásra került, a dokumentáció újbóli feltöltése elegendő.
+Ez a repository OpenShift célkörnyezetre van tisztítva; csak az OpenShift telepítéshez szükséges elemek maradtak.

@@ -34,6 +34,26 @@ stringData:
   MYSQL_PASSWORD: CHANGE_ME_STRONG_DB_PASSWORD
 ---
 apiVersion: v1
+kind: Secret
+metadata:
+  name: photowebapp-backend-webhook-secret
+  labels:
+    app: photowebapp
+type: Opaque
+stringData:
+  WebHookSecretKey: CHANGE_ME_BACKEND_WEBHOOK_SECRET
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: photowebapp-frontend-webhook-secret
+  labels:
+    app: photowebapp
+type: Opaque
+stringData:
+  WebHookSecretKey: CHANGE_ME_FRONTEND_WEBHOOK_SECRET
+---
+apiVersion: v1
 kind: ConfigMap
 metadata:
   name: photowebapp-db-init
@@ -115,15 +135,26 @@ spec:
     git:
       uri: https://github.com/NagypalMarton/PhotoWebApp_PaaS.git
   strategy:
-    type: Docker
-    dockerStrategy:
-      dockerfilePath: Dockerfile
+    type: Source
+    sourceStrategy:
+      from:
+        kind: ImageStreamTag
+        name: python:3.11-ubi9
+        namespace: openshift
   output:
     to:
       kind: ImageStreamTag
       name: photowebapp-backend:latest
   triggers:
     - type: ConfigChange
+    - type: GitHub
+      github:
+        secretReference:
+          name: photowebapp-backend-webhook-secret
+    - type: Generic
+      generic:
+        secretReference:
+          name: photowebapp-backend-webhook-secret
 ---
 apiVersion: build.openshift.io/v1
 kind: BuildConfig
@@ -139,15 +170,26 @@ spec:
       uri: https://github.com/NagypalMarton/PhotoWebApp_PaaS.git
     contextDir: frontend
   strategy:
-    type: Docker
-    dockerStrategy:
-      dockerfilePath: Dockerfile
+    type: Source
+    sourceStrategy:
+      from:
+        kind: ImageStreamTag
+        name: nginx:1.24-ubi9
+        namespace: openshift
   output:
     to:
       kind: ImageStreamTag
       name: photowebapp-frontend:latest
   triggers:
     - type: ConfigChange
+    - type: GitHub
+      github:
+        secretReference:
+          name: photowebapp-frontend-webhook-secret
+    - type: Generic
+      generic:
+        secretReference:
+          name: photowebapp-frontend-webhook-secret
 ---
 apiVersion: apps/v1
 kind: Deployment
