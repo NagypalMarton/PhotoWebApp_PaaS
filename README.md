@@ -2,8 +2,6 @@
 
 Felhőalapú elosztott rendszerek laboratórium (2026) projekt: fényképalbum alkalmazás publikus PaaS környezetre.
 
-Kapcsolódó követelményspecifikáció: [GalleryAppSRS.md](GalleryAppSRS.md)
-
 ## 1) Projektcél és beadási kontextus
 
 A feladat célja egy PaaS-on futó fényképalbum alkalmazás elkészítése, az alábbi kulcskövetelményekkel:
