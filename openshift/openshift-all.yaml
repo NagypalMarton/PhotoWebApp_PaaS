@@ -17,9 +17,9 @@ metadata:
     app: photowebapp
 type: Opaque
 stringData:
-  SECRET_KEY: change-me-in-production
+  SECRET_KEY: CHANGE_ME_STRONG_APP_SECRET
   DB_USER: gallery_user
-  DB_PASSWORD: gallery_password
+  DB_PASSWORD: CHANGE_ME_STRONG_DB_PASSWORD
 ---
 apiVersion: v1
 kind: Secret
@@ -29,9 +29,9 @@ metadata:
     app: photowebapp
 type: Opaque
 stringData:
-  MYSQL_ROOT_PASSWORD: rootpassword
+  MYSQL_ROOT_PASSWORD: CHANGE_ME_STRONG_ROOT_PASSWORD
   MYSQL_USER: gallery_user
-  MYSQL_PASSWORD: gallery_password
+  MYSQL_PASSWORD: CHANGE_ME_STRONG_DB_PASSWORD
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -202,7 +202,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: ghcr.io/your-org/photowebapp-backend:latest
+          image: ghcr.io/nagypalmarton/photowebapp-backend:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
@@ -297,7 +297,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: ghcr.io/your-org/photowebapp-frontend:latest
+          image: ghcr.io/nagypalmarton/photowebapp-frontend:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8080

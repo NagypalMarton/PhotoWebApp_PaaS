@@ -62,6 +62,15 @@ Megvalósított funkciók:
 ### Előfeltételek
 
 - Docker Desktop (Compose támogatással)
+- kitöltött `.env` fájl (mintához: `.env.example`)
+
+Első futtatás előtt (PowerShell):
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Majd a `.env` fájlban cseréld a `CHANGE_ME_*` értékeket erős, egyedi titkokra.
 
 ### Indítás
 

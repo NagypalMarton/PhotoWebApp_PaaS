@@ -4,10 +4,10 @@ services:
     container_name: photowebapp_db
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: gallery
-      MYSQL_USER: gallery_user
-      MYSQL_PASSWORD: gallery_password
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
     ports:
       - "3306:3306"
     volumes:
@@ -25,12 +25,12 @@ services:
     restart: unless-stopped
     environment:
       PORT: 3000
-      SECRET_KEY: change-me-in-production
-      DB_HOST: db
-      DB_PORT: 3306
-      DB_USER: gallery_user
-      DB_PASSWORD: gallery_password
-      DB_NAME: gallery
+      SECRET_KEY: ${SECRET_KEY}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
     depends_on:
       db:
         condition: service_healthy

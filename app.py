@@ -17,13 +17,20 @@ MAX_CONTENT_LENGTH = 100 * 1024 * 1024
 ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "webp"}
 
 
+def get_required_env(name: str) -> str:
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return value
+
+
 def get_db_connection():
     return pymysql.connect(
         host=os.getenv("DB_HOST", "db"),
         port=int(os.getenv("DB_PORT", "3306")),
-        user=os.getenv("DB_USER", "gallery_user"),
-        password=os.getenv("DB_PASSWORD", "gallery_password"),
-        database=os.getenv("DB_NAME", "gallery"),
+        user=get_required_env("DB_USER"),
+        password=get_required_env("DB_PASSWORD"),
+        database=get_required_env("DB_NAME"),
         cursorclass=DictCursor,
         autocommit=True,
     )
@@ -31,7 +38,7 @@ def get_db_connection():
 
 def create_app():
     app = Flask(__name__)
-    app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "change-me-in-production")
+    app.config["SECRET_KEY"] = get_required_env("SECRET_KEY")
     app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
     app.config["UPLOAD_FOLDER"] = str(UPLOAD_DIR)
 

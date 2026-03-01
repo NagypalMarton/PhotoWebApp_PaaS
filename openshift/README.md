@@ -10,28 +10,35 @@ Ez a mappa a PhotoWebApp OpenShift (PaaS) deploy erőforrásait tartalmazza.
 
 ## 1) Image-ek build és push
 
-A `openshift-all.yaml` fájlban az alábbi image neveket állítsd át saját repository-ra:
+Az `openshift-all.yaml` alapértelmezetten az alábbi image-ekre mutat:
 
-- `ghcr.io/your-org/photowebapp-backend:latest`
-- `ghcr.io/your-org/photowebapp-frontend:latest`
+- `ghcr.io/nagypalmarton/photowebapp-backend:latest`
+- `ghcr.io/nagypalmarton/photowebapp-frontend:latest`
+
+Ha más registry-t használsz, ezeket az értékeket írd át.
 
 Példa lokális build + push:
 
 ```bash
-docker build -t ghcr.io/<ORG>/photowebapp-backend:latest .
-docker push ghcr.io/<ORG>/photowebapp-backend:latest
+docker build -t ghcr.io/nagypalmarton/photowebapp-backend:latest .
+docker push ghcr.io/nagypalmarton/photowebapp-backend:latest
 
-docker build -t ghcr.io/<ORG>/photowebapp-frontend:latest ./frontend
-docker push ghcr.io/<ORG>/photowebapp-frontend:latest
+docker build -t ghcr.io/nagypalmarton/photowebapp-frontend:latest ./frontend
+docker push ghcr.io/nagypalmarton/photowebapp-frontend:latest
 ```
 
-## 2) Deploy
+## 2) Secret értékek beállítása
+
+A `openshift-all.yaml` fájlban a Secret objektumokban `CHANGE_ME_*` placeholder értékek vannak.
+Telepítés előtt ezeket kötelező erős, egyedi értékekre cserélni.
+
+## 3) Deploy
 
 ```bash
 oc apply -f openshift/openshift-all.yaml
 ```
 
-## 3) Ellenőrzés
+## 4) Ellenőrzés
 
 ```bash
 oc get pods
