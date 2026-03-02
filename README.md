@@ -21,23 +21,7 @@ A projekt célja egy OpenShift-en futó fotóalbum alkalmazás, az alábbi funkc
 - **OpenShift erőforrások:** [openshift/openshift-all.yaml](openshift/openshift-all.yaml)
 - **OpenShift telepítési leírás:** [openshift/README.md](openshift/README.md)
 
-## 3) OpenShift telepítés (röviden)
-
-```bash
-oc apply -f openshift/openshift-all.yaml
-oc start-build photowebapp-backend --follow
-oc start-build photowebapp-frontend --follow
-```
-
-Route host lekérdezése:
-
-```bash
-oc get route photowebapp -o jsonpath='{.spec.host}'
-```
-
-Részletes lépések: [openshift/README.md](openshift/README.md).
-
-### Devfile import (egylépéses stack deploy)
+## 3) OpenShiftbe való importálás
 
 A gyökérben található [devfile.yaml](devfile.yaml) importálás után az `up` parancs egy lépésben alkalmazza az összes OpenShift réteget (`openshift/openshift-all.yaml`).
 
