@@ -2,18 +2,7 @@ schemaVersion: 2.1.0
 metadata:
   name: photowebapp-paas
 components:
-  - name: import-build-image
-    image:
-      imageName: image-registry.openshift-image-registry.svc:5000/myproject/photowebapp-devfile-import:latest
-      autoBuild: false
-      dockerfile:
-        uri: .devfile/Dockerfile
-        buildContext: .
-  - name: openshift-stack
-    openshift:
-      uri: openshift/openshift-all.yaml
-      deployByDefault: false
-  - name: import-port-8080
+  - name: workspace
     container:
       image: quay.io/devfile/universal-developer-image:latest
       mountSources: false
@@ -22,27 +11,23 @@ components:
           targetPort: 8080
           exposure: public
           protocol: http
+  - name: openshift-stack
+    openshift:
+      uri: openshift/openshift-all.yaml
 commands:
-  - id: build-import-image
-    apply:
-      component: import-build-image
-    group:
-      kind: build
-      isDefault: true
+  - id: build
+    exec:
+      component: workspace
+      commandLine: echo "Devfile build step"
   - id: deploy-openshift-stack
     apply:
       component: openshift-stack
-    group:
-      kind: deploy
-      isDefault: true
   - id: deploy
     composite:
       commands:
-        - build-import-image
+        - build
         - deploy-openshift-stack
       parallel: false
-    group:
-      kind: deploy
   - id: up
     composite:
       commands:
