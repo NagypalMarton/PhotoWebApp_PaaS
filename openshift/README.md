@@ -1,167 +1,64 @@
-# OpenShift telepítés (Red Hat OpenShift)
+# OpenShift telepítés (CLI nélkül, Docker Hub image forrással)
 
 Ez a mappa a PhotoWebApp OpenShift (PaaS) deploy erőforrásait tartalmazza.
+
+## Áttekintés
+
+A backend és frontend image-ek GitHub Actions-ből kerülnek Docker Hubra minden `push` után:
+
+- `<DOCKERHUB_USERNAME>/photowebapp-backend:latest`
+- `<DOCKERHUB_USERNAME>/photowebapp-frontend:latest`
+
+OpenShift oldalon az `ImageStream` erőforrások Docker Hubról importálnak, a `DeploymentConfig` pedig ezekre image-change triggerrel frissül.
 
 ## Előfeltételek
 
 - OpenShift projekt (namespace)
-- `oc` CLI bejelentkezve
-- A klaszter elérje a GitHub repository-t
+- Docker Hub repository-k létrehozva
+- GitHub repository secret-ek:
+  - `DOCKERHUB_USERNAME`
+  - `DOCKERHUB_TOKEN`
 
-## 1) Secret értékek beállítása
+## 1) GitHub secret-ek
 
-**Fontos:** Ez a projekt **NEM használ GitHub Secrets-et** (GitHub → Settings → Secrets and variables → Actions).
-Nincs `.github/workflows` könyvtár, és nincsenek GitHub Actions workflow-k.
+A `DOCKERHUB_USERNAME` és `DOCKERHUB_TOKEN` értékeket **Repository secrets**-ként add meg
+(nem Environment secretként), mert a workflow ezeket közvetlenül használja.
 
-Minden secret **OpenShift/Kubernetes Secret objektum**, amelyek az `openshift/openshift-all.yaml` fájlban vannak definiálva:
+## 2) OpenShift erőforrások importálása weben
 
-| Secret neve | Tartalom |
-|---|---|
-| `photowebapp-backend-secret` | `SECRET_KEY` (Flask titkos kulcs) |
-| `photowebapp-db-secret` | `MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD` (adatbázis jelszavak) |
-| `photowebapp-backend-webhook` | `WebHookSecretKey` (GitHub webhook secret a backend BuildConfig-hoz) |
-| `photowebapp-frontend-webhook` | `WebHookSecretKey` (GitHub webhook secret a frontend BuildConfig-hoz) |
+OpenShift Console: `+Add` → `Import YAML` → illeszd be az `openshift/openshift-all-generated.yaml` tartalmát.
 
-A fájlban szereplő `CHANGE_ME_*` placeholder értékeket kötelező erős, egyedi értékekre cserélni
-**`oc apply` futtatása előtt**. Ha a placeholderek cseréletlenül maradnak, a webhook-ok 403-as hibával fognak visszatérni.
+Az import előtt cseréld ki:
 
-## 2) Secret generálás (ajánlott)
+- `CHANGE_ME_STRONG_*` → erős, egyedi secret értékek
 
-A legegyszerűbb módszer a `scripts/generate-secrets.sh` szkript futtatása, amely
-kriptográfiailag erős, véletlenszerű értékekkel helyettesíti az összes `CHANGE_ME_*`
-placeholdert, és létrehozza a `openshift/openshift-all-generated.yaml` fájlt —
-miközben az eredeti sablon (`openshift/openshift-all.yaml`) változatlan marad a Git-ben.
+Megjegyzés: a `CHANGE_ME_DOCKERHUB_USERNAME` helyettesítést a GitHub Actions automatikusan elvégzi
+a `DOCKERHUB_USERNAME` Repository Secretből, és frissíti a `openshift-all-generated.yaml` fájlt.
+
+## 3) Automatikus frissítés működése
+
+Nincs szükség OpenShift CLI parancsokra:
+
+- GitHub Actions minden `push` és `release` után feltolja az image-eket Docker Hubra,
+- OpenShift `ImageStream` ütemezetten importálja a `latest` taget,
+- `DeploymentConfig` image-change trigger automatikusan rolloutol.
+
+## Opcionális: secret generáló script
+
+Futtasd a scriptet, ha helyileg szeretnél generált secretekkel egy kész YAML-t:
 
 ```bash
 bash scripts/generate-secrets.sh
 ```
 
-A szkript végrehajtása után az alábbi fájlt kell alkalmazni az OpenShift-re:
+Ez létrehozza a `openshift/openshift-all-generated.yaml` fájlt.
 
-```bash
-oc apply -f openshift/openshift-all-generated.yaml
-```
-
-> **Megjegyzés:** A `openshift/openshift-all-generated.yaml` fájl `.gitignore`-ban van,
-> így a valódi secretek soha nem kerülnek be a verziókezelőbe.
-
-## 3) Erőforrások telepítése (manuális alternatíva)
-
-Ha nem a szkriptet használod, manuálisan cseréld ki a `CHANGE_ME_*` placeholder értékeket
-az `openshift/openshift-all.yaml` fájlban, majd:
-
-```bash
-oc apply -f openshift/openshift-all.yaml
-```
-
-Ez létrehozza többek között a következőket:
-
-- `ImageStream` a backendhez és frontendhez,
-- `BuildConfig` a GitHub forrásból történő S2I/source buildhez,
-- `DeploymentConfig` image-change triggerrel,
-- `Service` + `Route` + PVC + DB deployment.
-
-Builder image-ek:
-
-- backend: `openshift/python:3.11-ubi9`
-- frontend: `openshift/nginx:1.24-ubi9`
-
-Frontend Nginx konfiguráció útvonala a repository-ban:
-
-- `frontend/nginx-cfg/default.conf`
-
-## 4) Build indítása
-
-Első telepítés után indítsd el a buildet (vagy triggereld webhookkal):
-
-```bash
-oc start-build photowebapp-backend --follow
-oc start-build photowebapp-frontend --follow
-```
-
-Sikeres build után a `DeploymentConfig` automatikusan frissít és elindítja a rolloutot.
-
-### GitHub webhook URL-ek lekérdezése
-
-Backend:
-
-```bash
-oc describe bc photowebapp-backend | grep "Webhook GitHub"
-```
-
-PowerShell:
-
-```powershell
-oc describe bc photowebapp-backend | Select-String "Webhook GitHub"
-```
-
-Frontend:
-
-```bash
-oc describe bc photowebapp-frontend | grep "Webhook GitHub"
-```
-
-PowerShell:
-
-```powershell
-oc describe bc photowebapp-frontend | Select-String "Webhook GitHub"
-```
-
-A kapott URL-eket add meg a GitHub repository `Settings > Webhooks` felületén `application/json` payload formátummal.
-
-### Webhook 403-as hiba elhárítása
-
-Ha a GitHub webhook `403 Forbidden` hibával tér vissza, ellenőrizd az alábbi pontokat:
-
-- ✅ Kicserélted az összes `CHANGE_ME_*` értéket (vagy futtattad a `scripts/generate-secrets.sh` szkriptet)?
-- ✅ Újra futtattad az `oc apply`-t a módosítás után?
-- ✅ Az `oc describe bc` paranccsal lekérted az **új** webhook URL-t?
-- ✅ A GitHub webhook **„Secret"** mezője **üres**?
-- ✅ A Content-type beállítása `application/json`?
-
-**Fontos:** Az OpenShift a webhook secret-et az URL-be ágyazza be (pl. `…/webhooks/<secret>/github`).
-A GitHub Settings → Webhooks felületén a **„Secret"** mezőt **hagyd üresen** — OpenShift nem a
-GitHub által küldött `X-Hub-Signature` fejlécet ellenőrzi, hanem az URL-ben szereplő titkot.
-
-**Lépések a javításhoz:**
-
-1. Futtasd a `scripts/generate-secrets.sh` szkriptet, vagy manuálisan cseréld ki a `CHANGE_ME_*`
-   placeholder értékeket az `openshift/openshift-all.yaml` fájlban erős, egyedi stringekre.
-2. Alkalmazd újra a konfigurációt:
-   ```bash
-   oc apply -f openshift/openshift-all-generated.yaml
-   ```
-3. Kérd le a helyes webhook URL-eket:
-   ```bash
-   oc describe bc photowebapp-backend | grep "Webhook GitHub"
-   oc describe bc photowebapp-frontend | grep "Webhook GitHub"
-   ```
-4. A GitHub repository `Settings → Webhooks` felületén:
-   - **Payload URL**: az előző lépésben kapott URL
-   - **Content type**: `application/json`
-   - **Secret**: hagyd üresen
-5. A webhook kézbesítések állapotát a GitHub `Settings → Webhooks → (webhook) → Recent Deliveries`
-   alatt ellenőrizheted hibakeresés céljából.
-
-## 5) Ellenőrzés
-
-```bash
-oc get builds
-oc get is
-oc get pods
-oc get svc
-oc get route
-```
-
-A route hostot így kérdezheted le:
-
-```bash
-oc get route photowebapp -o jsonpath='{.spec.host}'
-```
+Ha ezt az utat választod, a `openshift-all-generated.yaml` fájlt ugyanúgy az OpenShift Console
+`Import YAML` felületén add hozzá.
 
 ## Megjegyzések
 
-- A backend és frontend OpenShift-kompatibilis portokon fut (`3000`, `8080`).
-- A feltöltési limit `100 MB` (frontend Nginx + backend Flask).
-- A `uploads` és adatbázis tárolás PVC-n keresztül történik.
-- A DB deployment `bitnami/mysql:8.4` image-et használ non-root kompatibilitás miatt.
+- A DB továbbra is OpenShift-en fut (`bitnami/mysql:8.4`).
+- A backend (`3000`) és frontend (`8080`) OpenShift-kompatibilis portokon fut.
+- A `uploads` és DB adat PVC-n tárolódik.
+- A GitHub Actions workflow fájl: `.github/workflows/dockerhub-publish.yml`.

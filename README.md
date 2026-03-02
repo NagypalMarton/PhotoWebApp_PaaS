@@ -14,7 +14,7 @@ Felhőalapú elosztott rendszerek laboratórium (2026) projekt: OpenShift-re ter
 - **Backend:** Flask + Gunicorn ([app.py](app.py))
 - **Adatbázis:** MySQL 8.4 ([db/init.sql](db/init.sql))
 - **Frontend:** statikus HTML + Bootstrap + Nginx reverse proxy ([frontend/index.html](frontend/index.html), [frontend/nginx-cfg/default.conf](frontend/nginx-cfg/default.conf))
-- **Platform:** OpenShift BuildConfig + DeploymentConfig + Route ([openshift/openshift-all.yaml](openshift/openshift-all.yaml))
+- **Platform:** Docker Hub + OpenShift ImageStream import + DeploymentConfig + Route ([openshift/openshift-all.yaml](openshift/openshift-all.yaml))
 
 ## Projektstruktúra
 
@@ -28,7 +28,7 @@ Felhőalapú elosztott rendszerek laboratórium (2026) projekt: OpenShift-re ter
 ## Környezeti változók (backend)
 
 | Változó | Kötelező | Alapérték | Leírás |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `PORT` | nem | `3000` | Flask/Gunicorn port |
 | `SECRET_KEY` | igen | – | Session titkos kulcs |
 | `DB_HOST` | nem | `db` | MySQL host |
@@ -39,34 +39,43 @@ Felhőalapú elosztott rendszerek laboratórium (2026) projekt: OpenShift-re ter
 
 Referenciaértékek: [.env.example](.env.example)
 
-## OpenShift telepítés (ajánlott)
+## Docker Hub CI (minden commit után)
 
-1. Generáld le a valódi secret értékeket:
+A repository tartalmaz egy GitHub Actions workflow-t: [.github/workflows/dockerhub-publish.yml](.github/workflows/dockerhub-publish.yml).
 
-	```bash
-	bash scripts/generate-secrets.sh
-	```
+- Trigger: minden `push` (commit után)
+- Eredmény: a backend és frontend image felpusholása Docker Hubra
+  - `<DOCKERHUB_USERNAME>/photowebapp-backend:latest`
+  - `<DOCKERHUB_USERNAME>/photowebapp-frontend:latest`
 
-2. Alkalmazd a generált manifestet:
+Szükséges GitHub repository secret-ek:
 
-	```bash
-	oc apply -f openshift/openshift-all-generated.yaml
-	```
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN` (Docker Hub access token)
 
-3. Indítsd el az első buildet:
+> Ezeket **Repository secrets**-ként add meg (nem Environment secretként), mert a workflow közvetlenül innen olvassa.
 
-	```bash
-	oc start-build photowebapp-backend --follow
-	oc start-build photowebapp-frontend --follow
-	```
+Az `openshift/openshift-all-generated.yaml` fájlt a GitHub Actions automatikusan előállítja/frissíti a `DOCKERHUB_USERNAME` secretből.
 
-4. Ellenőrizd az erőforrásokat:
+## OpenShift telepítés (CLI nélkül, automatikus frissítéssel)
 
-	```bash
-	oc get pods
-	oc get svc
-	oc get route
-	```
+1. OpenShift Console-ban (`+Add` → `Import YAML`) importáld az [openshift/openshift-all-generated.yaml](openshift/openshift-all-generated.yaml) tartalmát.
+
+2. Ugyanitt cseréld le a `CHANGE_ME_STRONG_*` secret placeholdereket erős, egyedi értékekre.
+
+3. Kész.
+
+Az automatikus működés ezután:
+
+- minden commit/release után a GitHub Actions feltolja az új image-et Docker Hubra,
+- OpenShift `ImageStream` időzítetten importálja a `latest` taget,
+- a `DeploymentConfig` image-change trigger automatikusan rolloutol.
+
+Ha ragaszkodsz a scriptes secret-generáláshoz, opcionálisan használható helyileg:
+
+   ```bash
+   bash scripts/generate-secrets.sh
+   ```
 
 Részletes OpenShift leírás: [openshift/README.md](openshift/README.md)
 

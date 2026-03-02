@@ -34,26 +34,6 @@ stringData:
   MYSQL_PASSWORD: CHANGE_ME_STRONG_DB_PASSWORD
 ---
 apiVersion: v1
-kind: Secret
-metadata:
-  name: photowebapp-backend-webhook-secret
-  labels:
-    app: photowebapp
-type: Opaque
-stringData:
-  WebHookSecretKey: CHANGE_ME_BACKEND_WEBHOOK_SECRET
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: photowebapp-frontend-webhook-secret
-  labels:
-    app: photowebapp
-type: Opaque
-stringData:
-  WebHookSecretKey: CHANGE_ME_FRONTEND_WEBHOOK_SECRET
----
-apiVersion: v1
 kind: ConfigMap
 metadata:
   name: photowebapp-db-init
@@ -114,6 +94,14 @@ metadata:
   name: photowebapp-backend
   labels:
     app: photowebapp
+spec:
+  tags:
+    - name: latest
+      from:
+        kind: DockerImage
+        name: docker.io/CHANGE_ME_DOCKERHUB_USERNAME/photowebapp-backend:latest
+      importPolicy:
+        scheduled: true
 ---
 apiVersion: image.openshift.io/v1
 kind: ImageStream
@@ -121,75 +109,14 @@ metadata:
   name: photowebapp-frontend
   labels:
     app: photowebapp
----
-apiVersion: build.openshift.io/v1
-kind: BuildConfig
-metadata:
-  name: photowebapp-backend
-  labels:
-    app: photowebapp
-    component: backend
 spec:
-  source:
-    type: Git
-    git:
-      uri: https://github.com/NagypalMarton/PhotoWebApp_PaaS.git
-  strategy:
-    type: Source
-    sourceStrategy:
+  tags:
+    - name: latest
       from:
-        kind: ImageStreamTag
-        name: python:3.11-ubi9
-        namespace: openshift
-  output:
-    to:
-      kind: ImageStreamTag
-      name: photowebapp-backend:latest
-  triggers:
-    - type: ConfigChange
-    - type: GitHub
-      github:
-        secretReference:
-          name: photowebapp-backend-webhook-secret
-    - type: Generic
-      generic:
-        secretReference:
-          name: photowebapp-backend-webhook-secret
----
-apiVersion: build.openshift.io/v1
-kind: BuildConfig
-metadata:
-  name: photowebapp-frontend
-  labels:
-    app: photowebapp
-    component: frontend
-spec:
-  source:
-    type: Git
-    git:
-      uri: https://github.com/NagypalMarton/PhotoWebApp_PaaS.git
-    contextDir: frontend
-  strategy:
-    type: Source
-    sourceStrategy:
-      from:
-        kind: ImageStreamTag
-        name: nginx:1.24-ubi9
-        namespace: openshift
-  output:
-    to:
-      kind: ImageStreamTag
-      name: photowebapp-frontend:latest
-  triggers:
-    - type: ConfigChange
-    - type: GitHub
-      github:
-        secretReference:
-          name: photowebapp-frontend-webhook-secret
-    - type: Generic
-      generic:
-        secretReference:
-          name: photowebapp-frontend-webhook-secret
+        kind: DockerImage
+        name: docker.io/CHANGE_ME_DOCKERHUB_USERNAME/photowebapp-frontend:latest
+      importPolicy:
+        scheduled: true
 ---
 apiVersion: apps/v1
 kind: Deployment

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # generate-secrets.sh
-# Generates cryptographically random values for all CHANGE_ME_* placeholders in
+# Generates cryptographically random values for secret placeholders in
 # openshift/openshift-all.yaml and writes the result to
 # openshift/openshift-all-generated.yaml (which is git-ignored).
 #
@@ -29,15 +29,13 @@ echo ""
 SECRET_KEY=$(openssl rand -hex 20)
 DB_PASSWORD=$(openssl rand -hex 20)
 MYSQL_ROOT_PASSWORD=$(openssl rand -hex 20)
-BACKEND_WEBHOOK_SECRET=$(openssl rand -hex 20)
-FRONTEND_WEBHOOK_SECRET=$(openssl rand -hex 20)
+DOCKERHUB_USERNAME_VALUE="${DOCKERHUB_USERNAME:-CHANGE_ME_DOCKERHUB_USERNAME}"
 
 sed \
   -e "s/CHANGE_ME_STRONG_APP_SECRET/${SECRET_KEY}/g" \
   -e "s/CHANGE_ME_STRONG_DB_PASSWORD/${DB_PASSWORD}/g" \
   -e "s/CHANGE_ME_STRONG_ROOT_PASSWORD/${MYSQL_ROOT_PASSWORD}/g" \
-  -e "s/CHANGE_ME_BACKEND_WEBHOOK_SECRET/${BACKEND_WEBHOOK_SECRET}/g" \
-  -e "s/CHANGE_ME_FRONTEND_WEBHOOK_SECRET/${FRONTEND_WEBHOOK_SECRET}/g" \
+  -e "s/CHANGE_ME_DOCKERHUB_USERNAME/${DOCKERHUB_USERNAME_VALUE}/g" \
   "${TEMPLATE}" > "${OUTPUT}"
 
 echo "✅ Generated: ${OUTPUT}"
@@ -47,13 +45,18 @@ echo ""
 echo "  1. Apply the configuration to OpenShift:"
 echo "     oc apply -f openshift/openshift-all-generated.yaml"
 echo ""
-echo "  2. Retrieve the webhook URLs after applying:"
-echo "     oc describe bc photowebapp-backend | grep 'Webhook GitHub'"
-echo "     oc describe bc photowebapp-frontend | grep 'Webhook GitHub'"
+echo "  2. Import Docker Hub images into OpenShift ImageStreams:"
+echo "     oc import-image photowebapp-backend:latest --confirm"
+echo "     oc import-image photowebapp-frontend:latest --confirm"
 echo ""
-echo "  3. In GitHub → Settings → Webhooks:"
-echo "     - Payload URL:  <the URL from step 2>"
-echo "     - Content type: application/json"
-echo "     - Secret:       ⚠️  leave EMPTY (the secret is embedded in the URL)"
+echo "  3. Verify resources:"
+echo "     oc get is"
+echo "     oc get pods"
 echo ""
+if [ "${DOCKERHUB_USERNAME_VALUE}" = "CHANGE_ME_DOCKERHUB_USERNAME" ]; then
+  echo "⚠️  DOCKERHUB_USERNAME env var is not set."
+  echo "    Replace CHANGE_ME_DOCKERHUB_USERNAME in openshift-all-generated.yaml before apply."
+  echo ""
+fi
+
 echo "The original openshift/openshift-all.yaml template remains unchanged."
