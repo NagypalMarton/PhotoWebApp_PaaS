@@ -43,22 +43,11 @@ commands:
       group:
         kind: deploy
         isDefault: false
-  - id: start-openshift-builds
-    exec:
-      component: workspace
-      commandLine: >-
-        oc start-build photowebapp-backend --follow &&
-        oc start-build photowebapp-frontend --follow
-      workingDir: ${PROJECT_SOURCE}
-      group:
-        kind: deploy
-        isDefault: false
   - id: deploy
     composite:
       commands:
         - build
         - deploy-openshift-stack
-        - start-openshift-builds
       parallel: false
       group:
         kind: deploy
@@ -77,5 +66,4 @@ commands:
       commands:
         - build
         - deploy-openshift-stack
-        - start-openshift-builds
       parallel: false

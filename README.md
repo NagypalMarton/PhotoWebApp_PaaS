@@ -23,7 +23,7 @@ A projekt célja egy OpenShift-en futó fotóalbum alkalmazás, az alábbi funkc
 
 ## 3) OpenShiftbe való importálás
 
-A gyökérben található [devfile.yaml](devfile.yaml) importálás után az alapértelmezett `deploy` parancs egy lépésben alkalmazza az összes OpenShift réteget (`openshift/openshift-all.yaml`), automatikusan elindítja a backend/frontend buildet, és külön frontend, backend, ill. adatbázis munkaterhelést hoz létre:
+A gyökérben található [devfile.yaml](devfile.yaml) importálás után az alapértelmezett `deploy` parancs egy lépésben alkalmazza az összes OpenShift réteget (`openshift/openshift-all.yaml`), és külön frontend, backend, ill. adatbázis munkaterhelést hoz létre:
 
 - **frontend** – Deployment + Service + Route (port 8080)
 - **backend** – Deployment + Service (port 3000)
@@ -45,3 +45,7 @@ A telepítés előtt futtasd a `scripts/generate-secrets.sh` szkriptet, hogy a `
 - `GET /api/photos?sort=name|date&order=asc|desc`
 - `POST /api/photos` (multipart/form-data: `name`, `photo`, max. 100 MB)
 - `DELETE /api/photos/:id`
+
+## 5) Megjegyzés
+
+Ez a repository OpenShift célkörnyezetre van tisztítva; csak az OpenShift telepítéshez szükséges elemek maradtak.
