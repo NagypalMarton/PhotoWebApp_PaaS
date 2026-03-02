@@ -18,6 +18,11 @@ spec:
         - name: app
           image: image-registry.openshift-image-registry.svc:5000/myproject/photowebapp-devfile-import:latest
           imagePullPolicy: Always
+          env:
+            - name: PORT
+              value: "3000"
+            - name: SECRET_KEY
+              value: devfile-temp-secret-change-me
           resources:
             requests:
               cpu: 100m
