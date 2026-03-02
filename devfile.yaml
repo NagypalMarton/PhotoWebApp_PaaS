@@ -1,7 +1,14 @@
-schemaVersion: 2.1.0
+schemaVersion: 2.2.0
 metadata:
   name: photowebapp-paas
 components:
+  - name: import-build-image
+    image:
+      imageName: image-registry.openshift-image-registry.svc:5000/myproject/photowebapp-devfile-import:latest
+      autoBuild: false
+      dockerfile:
+        uri: .devfile/Dockerfile
+        buildContext: .
   - name: workspace
     container:
       image: quay.io/devfile/universal-developer-image:latest
@@ -16,18 +23,25 @@ components:
       uri: openshift/openshift-all.yaml
 commands:
   - id: build
-    exec:
-      component: workspace
-      commandLine: echo "Devfile build step"
+    apply:
+      component: import-build-image
+      group:
+        kind: build
+        isDefault: true
   - id: deploy-openshift-stack
     apply:
       component: openshift-stack
+      group:
+        kind: deploy
+        isDefault: true
   - id: deploy
     composite:
       commands:
         - build
         - deploy-openshift-stack
       parallel: false
+      group:
+        kind: deploy
   - id: up
     composite:
       commands:
