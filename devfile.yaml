@@ -47,6 +47,7 @@ commands:
     composite:
       commands:
         - build
+        - deploy-k8s-sample
         - deploy-openshift-stack
       parallel: false
       group:
