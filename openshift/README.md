@@ -25,7 +25,30 @@ Minden secret **OpenShift/Kubernetes Secret objektum**, amelyek az `openshift/op
 A fájlban szereplő `CHANGE_ME_*` placeholder értékeket kötelező erős, egyedi értékekre cserélni
 **`oc apply` futtatása előtt**. Ha a placeholderek cseréletlenül maradnak, a webhook-ok 403-as hibával fognak visszatérni.
 
-## 2) Erőforrások telepítése
+## 2) Secret generálás (ajánlott)
+
+A legegyszerűbb módszer a `scripts/generate-secrets.sh` szkript futtatása, amely
+kriptográfiailag erős, véletlenszerű értékekkel helyettesíti az összes `CHANGE_ME_*`
+placeholdert, és létrehozza a `openshift/openshift-all-generated.yaml` fájlt —
+miközben az eredeti sablon (`openshift/openshift-all.yaml`) változatlan marad a Git-ben.
+
+```bash
+bash scripts/generate-secrets.sh
+```
+
+A szkript végrehajtása után az alábbi fájlt kell alkalmazni az OpenShift-re:
+
+```bash
+oc apply -f openshift/openshift-all-generated.yaml
+```
+
+> **Megjegyzés:** A `openshift/openshift-all-generated.yaml` fájl `.gitignore`-ban van,
+> így a valódi secretek soha nem kerülnek be a verziókezelőbe.
+
+## 3) Erőforrások telepítése (manuális alternatíva)
+
+Ha nem a szkriptet használod, manuálisan cseréld ki a `CHANGE_ME_*` placeholder értékeket
+az `openshift/openshift-all.yaml` fájlban, majd:
 
 ```bash
 oc apply -f openshift/openshift-all.yaml
@@ -47,7 +70,7 @@ Frontend Nginx konfiguráció útvonala a repository-ban:
 
 - `frontend/nginx-cfg/default.conf`
 
-## 3) Build indítása
+## 4) Build indítása
 
 Első telepítés után indítsd el a buildet (vagy triggereld webhookkal):
 
@@ -88,9 +111,13 @@ A kapott URL-eket add meg a GitHub repository `Settings > Webhooks` felületén 
 
 ### Webhook 403-as hiba elhárítása
 
-Ha a GitHub webhook `403 Forbidden` hibával tér vissza, a leggyakoribb ok az, hogy a
-`CHANGE_ME_BACKEND_WEBHOOK_SECRET` / `CHANGE_ME_FRONTEND_WEBHOOK_SECRET` értékek nem lettek kicserélve
-valódi értékekre `oc apply` előtt.
+Ha a GitHub webhook `403 Forbidden` hibával tér vissza, ellenőrizd az alábbi pontokat:
+
+- ✅ Kicserélted az összes `CHANGE_ME_*` értéket (vagy futtattad a `scripts/generate-secrets.sh` szkriptet)?
+- ✅ Újra futtattad az `oc apply`-t a módosítás után?
+- ✅ Az `oc describe bc` paranccsal lekérted az **új** webhook URL-t?
+- ✅ A GitHub webhook **„Secret"** mezője **üres**?
+- ✅ A Content-type beállítása `application/json`?
 
 **Fontos:** Az OpenShift a webhook secret-et az URL-be ágyazza be (pl. `…/webhooks/<secret>/github`).
 A GitHub Settings → Webhooks felületén a **„Secret"** mezőt **hagyd üresen** — OpenShift nem a
@@ -98,11 +125,11 @@ GitHub által küldött `X-Hub-Signature` fejlécet ellenőrzi, hanem az URL-ben
 
 **Lépések a javításhoz:**
 
-1. Az `openshift/openshift-all.yaml` fájlban cseréld ki a `CHANGE_ME_*` placeholder értékeket
-   erős, egyedi stringekre.
+1. Futtasd a `scripts/generate-secrets.sh` szkriptet, vagy manuálisan cseréld ki a `CHANGE_ME_*`
+   placeholder értékeket az `openshift/openshift-all.yaml` fájlban erős, egyedi stringekre.
 2. Alkalmazd újra a konfigurációt:
    ```bash
-   oc apply -f openshift/openshift-all.yaml
+   oc apply -f openshift/openshift-all-generated.yaml
    ```
 3. Kérd le a helyes webhook URL-eket:
    ```bash
@@ -116,7 +143,7 @@ GitHub által küldött `X-Hub-Signature` fejlécet ellenőrzi, hanem az URL-ben
 5. A webhook kézbesítések állapotát a GitHub `Settings → Webhooks → (webhook) → Recent Deliveries`
    alatt ellenőrizheted hibakeresés céljából.
 
-## 4) Ellenőrzés
+## 5) Ellenőrzés
 
 ```bash
 oc get builds
