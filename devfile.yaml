@@ -21,6 +21,9 @@ components:
   - name: k8s-deploy
     kubernetes:
       uri: openshift/devfile-k8s-deploy.yaml
+  - name: openshift-stack
+    openshift:
+      uri: openshift/openshift-all.yaml
 commands:
   - id: build
     apply:
@@ -28,9 +31,15 @@ commands:
       group:
         kind: build
         isDefault: true
-  - id: deploy-openshift-stack
+  - id: deploy-k8s-sample
     apply:
       component: k8s-deploy
+      group:
+        kind: deploy
+        isDefault: false
+  - id: deploy-openshift-stack
+    apply:
+      component: openshift-stack
       group:
         kind: deploy
         isDefault: false
