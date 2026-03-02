@@ -47,12 +47,20 @@ commands:
     composite:
       commands:
         - build
-        - deploy-k8s-sample
         - deploy-openshift-stack
       parallel: false
       group:
         kind: deploy
         isDefault: true
+  - id: deploy-k8s-devfile-only
+    composite:
+      commands:
+        - build
+        - deploy-k8s-sample
+      parallel: false
+      group:
+        kind: deploy
+        isDefault: false
   - id: up
     composite:
       commands:
