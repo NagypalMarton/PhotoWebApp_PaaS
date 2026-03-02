@@ -10,13 +10,20 @@ Ez a mappa a PhotoWebApp OpenShift (PaaS) deploy erőforrásait tartalmazza.
 
 ## 1) Secret értékek beállítása
 
-A `openshift-all.yaml` fájlban a Secret objektumokban `CHANGE_ME_*` placeholder értékek vannak.
-Telepítés előtt ezeket kötelező erős, egyedi értékekre cserélni.
+**Fontos:** Ez a projekt **NEM használ GitHub Secrets-et** (GitHub → Settings → Secrets and variables → Actions).
+Nincs `.github/workflows` könyvtár, és nincsenek GitHub Actions workflow-k.
 
-Webhookhoz külön secret kulcsok is vannak:
+Minden secret **OpenShift/Kubernetes Secret objektum**, amelyek az `openshift/openshift-all.yaml` fájlban vannak definiálva:
 
-- `CHANGE_ME_BACKEND_WEBHOOK_SECRET`
-- `CHANGE_ME_FRONTEND_WEBHOOK_SECRET`
+| Secret neve | Tartalom |
+|---|---|
+| `photowebapp-backend-secret` | `SECRET_KEY` (Flask titkos kulcs) |
+| `photowebapp-db-secret` | `MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD` (adatbázis jelszavak) |
+| `photowebapp-backend-webhook` | `WebHookSecretKey` (GitHub webhook secret a backend BuildConfig-hoz) |
+| `photowebapp-frontend-webhook` | `WebHookSecretKey` (GitHub webhook secret a frontend BuildConfig-hoz) |
+
+A fájlban szereplő `CHANGE_ME_*` placeholder értékeket kötelező erős, egyedi értékekre cserélni
+**`oc apply` futtatása előtt**. Ha a placeholderek cseréletlenül maradnak, a webhook-ok 403-as hibával fognak visszatérni.
 
 ## 2) Erőforrások telepítése
 
@@ -78,6 +85,36 @@ oc describe bc photowebapp-frontend | Select-String "Webhook GitHub"
 ```
 
 A kapott URL-eket add meg a GitHub repository `Settings > Webhooks` felületén `application/json` payload formátummal.
+
+### Webhook 403-as hiba elhárítása
+
+Ha a GitHub webhook `403 Forbidden` hibával tér vissza, a leggyakoribb ok az, hogy a
+`CHANGE_ME_BACKEND_WEBHOOK_SECRET` / `CHANGE_ME_FRONTEND_WEBHOOK_SECRET` értékek nem lettek kicserélve
+valódi értékekre `oc apply` előtt.
+
+**Fontos:** Az OpenShift a webhook secret-et az URL-be ágyazza be (pl. `…/webhooks/<secret>/github`).
+A GitHub Settings → Webhooks felületén a **„Secret"** mezőt **hagyd üresen** — OpenShift nem a
+GitHub által küldött `X-Hub-Signature` fejlécet ellenőrzi, hanem az URL-ben szereplő titkot.
+
+**Lépések a javításhoz:**
+
+1. Az `openshift/openshift-all.yaml` fájlban cseréld ki a `CHANGE_ME_*` placeholder értékeket
+   erős, egyedi stringekre.
+2. Alkalmazd újra a konfigurációt:
+   ```bash
+   oc apply -f openshift/openshift-all.yaml
+   ```
+3. Kérd le a helyes webhook URL-eket:
+   ```bash
+   oc describe bc photowebapp-backend | grep "Webhook GitHub"
+   oc describe bc photowebapp-frontend | grep "Webhook GitHub"
+   ```
+4. A GitHub repository `Settings → Webhooks` felületén:
+   - **Payload URL**: az előző lépésben kapott URL
+   - **Content type**: `application/json`
+   - **Secret**: hagyd üresen
+5. A webhook kézbesítések állapotát a GitHub `Settings → Webhooks → (webhook) → Recent Deliveries`
+   alatt ellenőrizheted hibakeresés céljából.
 
 ## 4) Ellenőrzés
 
