@@ -18,7 +18,8 @@ Felhőalapú elosztott rendszerek laboratórium (2026) projekt: OpenShift-re ter
 
 ## Projektstruktúra
 
-- [app.py](app.py) – Flask API és auth/session logika
+- [app.py](app.py) – Flask belépési pont (`create_app()`)
+- [photowebapp/](photowebapp/) – backend modulok (route-ok, DB, app factory)
 - [db/init.sql](db/init.sql) – `users` és `photos` táblák
 - [frontend/](frontend/) – kliensoldali felület és Nginx konfiguráció
 - [openshift/](openshift/) – teljes OpenShift manifestek és deployment dokumentáció
