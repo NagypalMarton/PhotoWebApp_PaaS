@@ -10,9 +10,9 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
     env:
-      DOCKERHUB_NAMESPACE: ${{ secrets.DOCKERHUB_NAMESPACE != '' && secrets.DOCKERHUB_NAMESPACE || secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_NAMESPACE: ${{ secrets.DOCKERHUB_USERNAME }}
     strategy:
       fail-fast: false
       matrix:
@@ -45,10 +45,6 @@ jobs:
           fi
           if [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
             echo "Missing repository secret: DOCKERHUB_TOKEN" >&2
-            exit 1
-          fi
-          if [ -z "${DOCKERHUB_NAMESPACE}" ]; then
-            echo "DOCKERHUB namespace is empty. Set DOCKERHUB_NAMESPACE or DOCKERHUB_USERNAME." >&2
             exit 1
           fi
 

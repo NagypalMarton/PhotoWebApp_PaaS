@@ -9,7 +9,7 @@ A backend és frontend image-ek GitHub Actions-ből kerülnek Docker Hubra minde
 - `<DOCKERHUB_USERNAME>/photowebapp-backend:latest`
 - `<DOCKERHUB_USERNAME>/photowebapp-frontend:latest`
 
-OpenShift oldalon az `ImageStream` erőforrások Docker Hubról importálnak, a `DeploymentConfig` pedig ezekre image-change triggerrel frissül.
+OpenShift oldalon a backend és frontend `Deployment` közvetlenül Docker Hub image-re mutat.
 
 ## Előfeltételek
 
@@ -18,7 +18,6 @@ OpenShift oldalon az `ImageStream` erőforrások Docker Hubról importálnak, a 
 - GitHub repository secret-ek:
   - `DOCKERHUB_USERNAME`
   - `DOCKERHUB_TOKEN`
-  - `DOCKERHUB_NAMESPACE` (opcionális, organization namespace esetén)
 
 ## 1) GitHub secret-ek
 
@@ -37,16 +36,15 @@ Az import előtt cseréld ki:
 - `CHANGE_ME_STRONG_*` → erős, egyedi secret értékek
 
 Megjegyzés: a `CHANGE_ME_DOCKERHUB_USERNAME` helyettesítést a GitHub Actions automatikusan elvégzi
-a `DOCKERHUB_NAMESPACE` (fallback: `DOCKERHUB_USERNAME`) Repository Secretből,
+a `DOCKERHUB_USERNAME` Repository Secretből,
 és frissíti a `openshift-all-generated.yaml` fájlt.
 
-## 3) Automatikus frissítés működése
+## 3) Frissítés működése
 
 Nincs szükség OpenShift CLI parancsokra:
 
 - GitHub Actions minden `push` és `release` után feltolja az image-eket Docker Hubra,
-- OpenShift `ImageStream` ütemezetten importálja a `latest` taget,
-- `DeploymentConfig` image-change trigger automatikusan rolloutol.
+- OpenShift deploy esetén a backend/frontend közvetlenül ezeket a Docker Hub image-eket használja.
 
 ## Opcionális: secret generáló script
 

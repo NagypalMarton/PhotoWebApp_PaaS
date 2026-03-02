@@ -14,7 +14,7 @@ Felhőalapú elosztott rendszerek laboratórium (2026) projekt: OpenShift-re ter
 - **Backend:** Flask + Gunicorn ([app.py](app.py))
 - **Adatbázis:** MySQL 8.4 ([db/init.sql](db/init.sql))
 - **Frontend:** statikus HTML + Bootstrap + Nginx reverse proxy ([frontend/index.html](frontend/index.html), [frontend/nginx-cfg/default.conf](frontend/nginx-cfg/default.conf))
-- **Platform:** Docker Hub + OpenShift ImageStream import + DeploymentConfig + Route ([openshift/openshift-all.yaml](openshift/openshift-all.yaml))
+- **Platform:** Docker Hub + OpenShift Deployment + Service + Route ([openshift/openshift-all.yaml](openshift/openshift-all.yaml))
 
 ## Projektstruktúra
 
@@ -53,12 +53,11 @@ Szükséges GitHub repository secret-ek:
 
 - `DOCKERHUB_USERNAME`
 - `DOCKERHUB_TOKEN` (Docker Hub access token)
-- `DOCKERHUB_NAMESPACE` (opcionális; ha Docker Hub organization namespace-be pusholsz)
 
 > Ezeket **Repository secrets**-ként add meg (nem Environment secretként), mert a workflow közvetlenül innen olvassa.
 > A `DOCKERHUB_TOKEN` tokenen legalább **Read + Write** jog kell, különben `401 insufficient scopes` hibát kapsz.
 
-Az `openshift/openshift-all-generated.yaml` fájlt a GitHub Actions automatikusan előállítja/frissíti a Docker Hub namespace secretből (`DOCKERHUB_NAMESPACE`, fallback: `DOCKERHUB_USERNAME`).
+Az `openshift/openshift-all-generated.yaml` fájlt a GitHub Actions automatikusan előállítja/frissíti a `DOCKERHUB_USERNAME` Repository Secret alapján.
 
 ## OpenShift telepítés (CLI nélkül, automatikus frissítéssel)
 
@@ -71,8 +70,7 @@ Az `openshift/openshift-all-generated.yaml` fájlt a GitHub Actions automatikusa
 Az automatikus működés ezután:
 
 - minden commit/release után a GitHub Actions feltolja az új image-et Docker Hubra,
-- OpenShift `ImageStream` időzítetten importálja a `latest` taget,
-- a `DeploymentConfig` image-change trigger automatikusan rolloutol.
+- OpenShift deploy esetén a backend/frontend közvetlenül ezeket a Docker Hub image-eket használja.
 
 Ha ragaszkodsz a scriptes secret-generáláshoz, opcionálisan használható helyileg:
 

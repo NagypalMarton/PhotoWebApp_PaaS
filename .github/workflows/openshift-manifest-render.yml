@@ -20,10 +20,10 @@ jobs:
       - name: Render openshift manifest
         shell: bash
         env:
-          DOCKERHUB_NAMESPACE: ${{ secrets.DOCKERHUB_NAMESPACE != '' && secrets.DOCKERHUB_NAMESPACE || secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_NAMESPACE: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
           if [ -z "${DOCKERHUB_NAMESPACE}" ]; then
-            echo "DOCKERHUB namespace is missing (set DOCKERHUB_NAMESPACE or DOCKERHUB_USERNAME)" >&2
+            echo "DOCKERHUB namespace is missing (set DOCKERHUB_USERNAME)" >&2
             exit 1
           fi
 
