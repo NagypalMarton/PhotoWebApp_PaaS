@@ -33,7 +33,7 @@ commands:
       component: openshift-stack
       group:
         kind: deploy
-        isDefault: true
+        isDefault: false
   - id: deploy
     composite:
       commands:
@@ -42,6 +42,7 @@ commands:
       parallel: false
       group:
         kind: deploy
+        isDefault: true
   - id: up
     composite:
       commands:
