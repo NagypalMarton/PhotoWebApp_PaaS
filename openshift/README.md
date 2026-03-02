@@ -61,7 +61,7 @@ Ha ezt az utat választod, a `openshift-all-generated.yaml` fájlt ugyanúgy az 
 
 ## Megjegyzések
 
-- A DB továbbra is OpenShift-en fut (`bitnami/mysql:8.4`).
+- A DB továbbra is OpenShift-en fut (`mysql:8.4`).
 - A backend (`3000`) és frontend (`8080`) OpenShift-kompatibilis portokon fut.
 - A `uploads` és DB adat PVC-n tárolódik.
 - A GitHub Actions workflow fájl: `.github/workflows/dockerhub-publish.yml`.

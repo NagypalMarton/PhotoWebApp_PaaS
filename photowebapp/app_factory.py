@@ -45,6 +45,10 @@ def create_app():
         except pymysql.MySQLError as error:
             return jsonify({"status": "error", "message": str(error)}), 500
 
+    @app.get("/api/health/live")
+    def health_live():
+        return jsonify({"status": "ok"})
+
     register_auth_routes(app, get_db_connection, current_user_id)
     register_photo_routes(
         app,
