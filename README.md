@@ -72,9 +72,9 @@ Részletes OpenShift leírás: [openshift/README.md](openshift/README.md)
 
 ## Devfile import (OpenShift Console)
 
-A [devfile.yaml](devfile.yaml) alapértelmezetten a `build + deploy-k8s-sample` kompozit parancsot futtatja (`deploy`), amely a [openshift/devfile-k8s-deploy.yaml](openshift/devfile-k8s-deploy.yaml) mintát alkalmazza.
+A [devfile.yaml](devfile.yaml) alapértelmezetten a `build + deploy-openshift-stack` kompozit parancsot futtatja (`deploy`), így a teljes OpenShift stack kerül alkalmazásra.
 
-- Teljes OpenShift stack deployhoz használd a `deploy-openshift-stack` parancsot.
+- A csak mintacélú k8s deploy továbbra is elérhető a `deploy-k8s-devfile-only` paranccsal ([openshift/devfile-k8s-deploy.yaml](openshift/devfile-k8s-deploy.yaml)).
 - A devfile endpoint explicit `targetPort: 8080` beállítással rendelkezik.
 
 ## API összefoglaló
