@@ -39,6 +39,7 @@ Felhőalapú elosztott rendszerek laboratórium (2026) projekt: OpenShift-re ter
 
 Referenciaértékek: [.env.example](.env.example)
 
+<<<<<<< HEAD
 ## Docker Hub CI (minden commit után)
 
 A repository tartalmaz egy GitHub Actions workflow-t: [.github/workflows/dockerhub-publish.yml](.github/workflows/dockerhub-publish.yml).
@@ -79,6 +80,8 @@ Ha ragaszkodsz a scriptes secret-generáláshoz, opcionálisan használható hel
 
 Részletes OpenShift leírás: [openshift/README.md](openshift/README.md)
 
+=======
+>>>>>>> a016d36beb99bbddd94541f3aa85c9bedad90e97
 ## Devfile import (OpenShift Console)
 
 A [devfile.yaml](devfile.yaml) alapértelmezetten a `build + deploy-openshift-stack` kompozit parancsot futtatja (`deploy`), így a teljes OpenShift stack kerül alkalmazásra.
