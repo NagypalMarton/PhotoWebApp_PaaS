@@ -72,7 +72,9 @@ Frontend Nginx konfiguráció útvonala a repository-ban:
 
 ## 4) Build indítása
 
-Első telepítés után indítsd el a buildet (vagy triggereld webhookkal):
+Ha a projektet a gyökérben lévő `devfile.yaml` alapértelmezett `deploy` parancsával telepíted, a backend és frontend build automatikusan elindul, külön `oc start-build` parancs nem szükséges.
+
+Manuális `oc apply` használata esetén indítsd el a buildet (vagy triggereld webhookkal):
 
 ```bash
 oc start-build photowebapp-backend --follow
