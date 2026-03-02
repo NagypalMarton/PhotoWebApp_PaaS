@@ -18,9 +18,9 @@ components:
           targetPort: 8080
           exposure: public
           protocol: http
-  - name: openshift-stack
-    openshift:
-      uri: openshift/openshift-all.yaml
+  - name: k8s-deploy
+    kubernetes:
+      uri: openshift/devfile-k8s-deploy.yaml
 commands:
   - id: build
     apply:
@@ -30,7 +30,7 @@ commands:
         isDefault: true
   - id: deploy-openshift-stack
     apply:
-      component: openshift-stack
+      component: k8s-deploy
       group:
         kind: deploy
         isDefault: false

@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: photowebapp-devfile
+  labels:
+    app: photowebapp-devfile
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: photowebapp-devfile
+  template:
+    metadata:
+      labels:
+        app: photowebapp-devfile
+    spec:
+      containers:
+        - name: app
+          image: image-registry.openshift-image-registry.svc:5000/myproject/photowebapp-devfile-import:latest
+          imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          ports:
+            - containerPort: 3000
+              name: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: photowebapp-devfile
+  labels:
+    app: photowebapp-devfile
+spec:
+  selector:
+    app: photowebapp-devfile
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
