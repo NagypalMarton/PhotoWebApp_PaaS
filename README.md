@@ -27,6 +27,8 @@ A gyökérben található [devfile.yaml](devfile.yaml) importálás után az `up
 
 A devfile explicit endpointtal rögzíti a `targetPort: 8080` beállítást importáláskor.
 
+A telepítés előtt futtasd a `scripts/generate-secrets.sh` szkriptet, hogy a `CHANGE_ME_*` placeholder értékek valódi titkokra legyenek cserélve. Részletekért lásd: [openshift/README.md](openshift/README.md).
+
 ## 4) API összefoglaló
 
 - `GET /api/health`
