@@ -23,13 +23,9 @@ A projekt célja egy OpenShift-en futó fotóalbum alkalmazás, az alábbi funkc
 
 ## 3) OpenShiftbe való importálás
 
-A gyökérben található [devfile.yaml](devfile.yaml) importálás után az alapértelmezett `deploy` parancs egy lépésben alkalmazza az összes OpenShift réteget (`openshift/openshift-all.yaml`), és külön frontend, backend, ill. adatbázis munkaterhelést hoz létre:
+A gyökérben található [devfile.yaml](devfile.yaml) importálás után az alapértelmezett `deploy` parancs a Kubernetes mintadeployt (`openshift/devfile-k8s-deploy.yaml`) alkalmazza, így a Devfile importáló biztosan talál `Deployment` erőforrást.
 
-- **frontend** – Deployment + Service + Route (port 8080)
-- **backend** – Deployment + Service (port 3000)
-- **db** – Deployment + Service (MySQL)
-
-A régi, egypodos gyors demo (`devfile-k8s-deploy.yaml`) a `deploy-k8s-devfile-only` paranccsal elérhető marad, de az alapértelmezett deploy útvonal már nem tartalmazza.
+Az OpenShift teljes stack (`openshift/openshift-all.yaml`) továbbra is elérhető a `deploy-openshift-stack` paranccsal.
 
 A devfile explicit endpointtal rögzíti a `targetPort: 8080` beállítást importáláskor.
 
