@@ -39,37 +39,6 @@ Felhőalapú elosztott rendszerek laboratórium (2026) projekt: OpenShift-re ter
 
 Referenciaértékek: [.env.example](.env.example)
 
-## OpenShift telepítés (ajánlott)
-
-1. Generáld le a valódi secret értékeket:
-
-	```bash
-	bash scripts/generate-secrets.sh
-	```
-
-2. Alkalmazd a generált manifestet:
-
-	```bash
-	oc apply -f openshift/openshift-all-generated.yaml
-	```
-
-3. Indítsd el az első buildet:
-
-	```bash
-	oc start-build photowebapp-backend --follow
-	oc start-build photowebapp-frontend --follow
-	```
-
-4. Ellenőrizd az erőforrásokat:
-
-	```bash
-	oc get pods
-	oc get svc
-	oc get route
-	```
-
-Részletes OpenShift leírás: [openshift/README.md](openshift/README.md)
-
 ## Devfile import (OpenShift Console)
 
 A [devfile.yaml](devfile.yaml) alapértelmezetten a `build + deploy-k8s-sample` kompozit parancsot futtatja (`deploy`), amely a [openshift/devfile-k8s-deploy.yaml](openshift/devfile-k8s-deploy.yaml) mintát alkalmazza.
