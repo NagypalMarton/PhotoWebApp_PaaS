@@ -36,7 +36,7 @@ commands:
       component: k8s-deploy
       group:
         kind: deploy
-        isDefault: false
+        isDefault: true
   - id: deploy-openshift-stack
     apply:
       component: openshift-stack
@@ -47,7 +47,7 @@ commands:
     composite:
       commands:
         - build
-        - deploy-openshift-stack
+        - deploy-k8s-sample
       parallel: false
       group:
         kind: deploy
@@ -65,5 +65,5 @@ commands:
     composite:
       commands:
         - build
-        - deploy-openshift-stack
+        - deploy-k8s-sample
       parallel: false
