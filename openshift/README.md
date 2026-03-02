@@ -18,11 +18,15 @@ OpenShift oldalon az `ImageStream` erőforrások Docker Hubról importálnak, a 
 - GitHub repository secret-ek:
   - `DOCKERHUB_USERNAME`
   - `DOCKERHUB_TOKEN`
+  - `DOCKERHUB_NAMESPACE` (opcionális, organization namespace esetén)
 
 ## 1) GitHub secret-ek
 
 A `DOCKERHUB_USERNAME` és `DOCKERHUB_TOKEN` értékeket **Repository secrets**-ként add meg
 (nem Environment secretként), mert a workflow ezeket közvetlenül használja.
+
+Fontos: a `DOCKERHUB_TOKEN` tokenen legyen legalább **Read + Write** jogosultság,
+különben Docker push közben `401 insufficient scopes` hiba jelenik meg.
 
 ## 2) OpenShift erőforrások importálása weben
 
@@ -33,7 +37,8 @@ Az import előtt cseréld ki:
 - `CHANGE_ME_STRONG_*` → erős, egyedi secret értékek
 
 Megjegyzés: a `CHANGE_ME_DOCKERHUB_USERNAME` helyettesítést a GitHub Actions automatikusan elvégzi
-a `DOCKERHUB_USERNAME` Repository Secretből, és frissíti a `openshift-all-generated.yaml` fájlt.
+a `DOCKERHUB_NAMESPACE` (fallback: `DOCKERHUB_USERNAME`) Repository Secretből,
+és frissíti a `openshift-all-generated.yaml` fájlt.
 
 ## 3) Automatikus frissítés működése
 

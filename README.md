@@ -39,7 +39,6 @@ Felhőalapú elosztott rendszerek laboratórium (2026) projekt: OpenShift-re ter
 
 Referenciaértékek: [.env.example](.env.example)
 
-<<<<<<< HEAD
 ## Docker Hub CI (minden commit után)
 
 A repository tartalmaz egy GitHub Actions workflow-t: [.github/workflows/dockerhub-publish.yml](.github/workflows/dockerhub-publish.yml).
@@ -53,10 +52,12 @@ Szükséges GitHub repository secret-ek:
 
 - `DOCKERHUB_USERNAME`
 - `DOCKERHUB_TOKEN` (Docker Hub access token)
+- `DOCKERHUB_NAMESPACE` (opcionális; ha Docker Hub organization namespace-be pusholsz)
 
 > Ezeket **Repository secrets**-ként add meg (nem Environment secretként), mert a workflow közvetlenül innen olvassa.
+> A `DOCKERHUB_TOKEN` tokenen legalább **Read + Write** jog kell, különben `401 insufficient scopes` hibát kapsz.
 
-Az `openshift/openshift-all-generated.yaml` fájlt a GitHub Actions automatikusan előállítja/frissíti a `DOCKERHUB_USERNAME` secretből.
+Az `openshift/openshift-all-generated.yaml` fájlt a GitHub Actions automatikusan előállítja/frissíti a Docker Hub namespace secretből (`DOCKERHUB_NAMESPACE`, fallback: `DOCKERHUB_USERNAME`).
 
 ## OpenShift telepítés (CLI nélkül, automatikus frissítéssel)
 
@@ -80,8 +81,6 @@ Ha ragaszkodsz a scriptes secret-generáláshoz, opcionálisan használható hel
 
 Részletes OpenShift leírás: [openshift/README.md](openshift/README.md)
 
-=======
->>>>>>> a016d36beb99bbddd94541f3aa85c9bedad90e97
 ## Devfile import (OpenShift Console)
 
 A [devfile.yaml](devfile.yaml) alapértelmezetten a `build + deploy-openshift-stack` kompozit parancsot futtatja (`deploy`), így a teljes OpenShift stack kerül alkalmazásra.

@@ -20,14 +20,14 @@ jobs:
       - name: Render openshift manifest
         shell: bash
         env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_NAMESPACE: ${{ secrets.DOCKERHUB_NAMESPACE != '' && secrets.DOCKERHUB_NAMESPACE || secrets.DOCKERHUB_USERNAME }}
         run: |
-          if [ -z "${DOCKERHUB_USERNAME}" ]; then
-            echo "DOCKERHUB_USERNAME secret is missing" >&2
+          if [ -z "${DOCKERHUB_NAMESPACE}" ]; then
+            echo "DOCKERHUB namespace is missing (set DOCKERHUB_NAMESPACE or DOCKERHUB_USERNAME)" >&2
             exit 1
           fi
 
-          sed "s/CHANGE_ME_DOCKERHUB_USERNAME/${DOCKERHUB_USERNAME}/g" \
+          sed "s/CHANGE_ME_DOCKERHUB_USERNAME/${DOCKERHUB_NAMESPACE}/g" \
             openshift/openshift-all.yaml > openshift/openshift-all-generated.yaml
 
       - name: Commit generated manifest
