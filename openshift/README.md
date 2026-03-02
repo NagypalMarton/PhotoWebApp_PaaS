@@ -37,7 +37,7 @@ Az import előtt cseréld ki:
 
 Megjegyzés: a `CHANGE_ME_DOCKERHUB_USERNAME` helyettesítést a GitHub Actions automatikusan elvégzi
 a `DOCKERHUB_USERNAME` Repository Secretből,
-és frissíti a `openshift-all-generated.yaml` fájlt.
+és frissíti a `openshift-all-generated.yaml` valamint a `redeploy-app-only-generated.yaml` fájlokat.
 
 ## 3) Frissítés működése
 

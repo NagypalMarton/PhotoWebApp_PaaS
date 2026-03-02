@@ -30,16 +30,19 @@ jobs:
           sed "s/CHANGE_ME_DOCKERHUB_USERNAME/${DOCKERHUB_NAMESPACE}/g" \
             openshift/openshift-all.yaml > openshift/openshift-all-generated.yaml
 
+          sed "s/CHANGE_ME_DOCKERHUB_USERNAME/${DOCKERHUB_NAMESPACE}/g" \
+            openshift/redeploy-app-only.yaml > openshift/redeploy-app-only-generated.yaml
+
       - name: Commit generated manifest
         shell: bash
         run: |
-          if git diff --quiet -- openshift/openshift-all-generated.yaml; then
+          if git diff --quiet -- openshift/openshift-all-generated.yaml openshift/redeploy-app-only-generated.yaml; then
             echo "No manifest changes to commit"
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add openshift/openshift-all-generated.yaml
+          git add openshift/openshift-all-generated.yaml openshift/redeploy-app-only-generated.yaml
           git commit -m "chore: render OpenShift manifest from repository secrets"
           git push
