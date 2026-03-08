@@ -25,6 +25,7 @@ Felhőalapú elosztott rendszerek laboratórium (2026) projekt: OpenShift-re ter
 - [db/init.sql](db/init.sql) – `users` és `photos` táblák
 - [frontend/](frontend/) – kliensoldali felület és Nginx konfiguráció
 - [openshift/](openshift/) – teljes OpenShift manifestek és deployment dokumentáció
+- [kubernetes/](kubernetes/) – vanilla Kubernetes manifestek (multi-tier, skálázható)
 - [devfile.yaml](devfile.yaml) – OpenShift Dev Spaces / Import from Git leírás
 - [scripts/generate-secrets.sh](scripts/generate-secrets.sh) – `CHANGE_ME_*` értékek biztonságos generálása
 
@@ -81,6 +82,35 @@ Ha ragaszkodsz a scriptes secret-generáláshoz, opcionálisan használható hel
    ```
 
 Részletes OpenShift leírás: [openshift/README.md](openshift/README.md)
+
+## Kubernetes telepítés (multi-tier, skálázható)
+
+A Kubernetes csomag a [kubernetes/photowebapp-paas.yaml](kubernetes/photowebapp-paas.yaml) fájlban található.
+
+Felépítés:
+
+- `frontend` réteg (Deployment + Service)
+- `backend` réteg (Deployment + Service)
+- `mysql` réteg (StatefulSet + Service)
+- `Ingress` publikus belépési ponttal
+- `HPA` backend és frontend autoscalinghez
+- `PDB` a gördülékeny karbantartáshoz
+
+Telepítés:
+
+```bash
+kubectl apply -f kubernetes/photowebapp-paas.yaml
+```
+
+Gyors ellenőrzés:
+
+```bash
+kubectl get all -n photowebapp-paas
+kubectl get ingress -n photowebapp-paas
+kubectl get hpa -n photowebapp-paas
+```
+
+Részletes Kubernetes leírás: [kubernetes/README.md](kubernetes/README.md)
 
 ## Devfile import (OpenShift Console)
 
