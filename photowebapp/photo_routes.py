@@ -5,28 +5,22 @@ import pymysql
 from flask import jsonify, request, send_from_directory
 from werkzeug.utils import secure_filename
 
-PHOTO_ORDER_BY_SQL = {
-    ("date", "desc"): """
-        SELECT id, owner_user_id, name, upload_datetime, file_path_or_url
-        FROM photos
-        ORDER BY upload_datetime DESC, id DESC
-    """,
-    ("date", "asc"): """
-        SELECT id, owner_user_id, name, upload_datetime, file_path_or_url
-        FROM photos
-        ORDER BY upload_datetime ASC, id DESC
-    """,
-    ("name", "desc"): """
-        SELECT id, owner_user_id, name, upload_datetime, file_path_or_url
-        FROM photos
-        ORDER BY name DESC, id DESC
-    """,
-    ("name", "asc"): """
-        SELECT id, owner_user_id, name, upload_datetime, file_path_or_url
-        FROM photos
-        ORDER BY name ASC, id DESC
-    """,
+PHOTO_LIST_SQL = """
+    SELECT id, owner_user_id, name, upload_datetime, file_path_or_url
+    FROM photos
+    ORDER BY {order_column} {order_direction}, id DESC
+"""
+
+PHOTO_SORT_COLUMNS = {
+    "date": "upload_datetime",
+    "name": "name",
 }
+
+
+def build_photo_list_query(sort_key: str, order_key: str) -> str:
+    order_column = PHOTO_SORT_COLUMNS[sort_key]
+    order_direction = "ASC" if order_key == "asc" else "DESC"
+    return PHOTO_LIST_SQL.format(order_column=order_column, order_direction=order_direction)
 
 
 def register_photo_routes(
@@ -48,7 +42,7 @@ def register_photo_routes(
         order = request.args.get("order", "desc").lower()
         sort_key = "name" if sort == "name" else "date"
         order_key = "asc" if order == "asc" else "desc"
-        query = PHOTO_ORDER_BY_SQL[(sort_key, order_key)]
+        query = build_photo_list_query(sort_key, order_key)
 
         try:
             with get_db_connection() as conn:
@@ -74,13 +68,25 @@ def register_photo_routes(
         if not allowed_file(file.filename):
             return jsonify({"message": "Nem támogatott fájltípus."}), 400
 
-        ext = file.filename.rsplit(".", 1)[1].lower()
-        safe_name = secure_filename(file.filename.rsplit(".", 1)[0]) or "photo"
-        final_filename = f"{uuid.uuid4().hex}_{safe_name}.{ext}"
+        stem, dot, ext = file.filename.rpartition(".")
+        if not dot:
+            return jsonify({"message": "Hibas fajlnev."}), 400
+
+        ext = ext.lower()
+        safe_name = secure_filename(stem) or "photo"
+        file_token = uuid.uuid4().hex
+        final_filename = f"{file_token}_{safe_name}.{ext}"
+        temp_filename = f"{final_filename}.uploading"
         save_path = upload_dir / final_filename
+        temp_path = upload_dir / temp_filename
+        photo_id = None
 
         try:
-            file.save(save_path)
+            file.save(temp_path)
+        except OSError:
+            return jsonify({"message": "Hiba a feltöltés közben."}), 500
+
+        try:
             with get_db_connection() as conn:
                 with conn.cursor() as cursor:
                     cursor.execute(
@@ -97,9 +103,24 @@ def register_photo_routes(
                         (photo_id,),
                     )
                     photo = cursor.fetchone()
-        except (pymysql.MySQLError, OSError):
+
+            temp_path.replace(save_path)
+        except pymysql.MySQLError:
+            if temp_path.exists():
+                temp_path.unlink(missing_ok=True)
+            return jsonify({"message": "Hiba az adatbázis művelet közben."}), 500
+        except OSError:
+            if temp_path.exists():
+                temp_path.unlink(missing_ok=True)
             if save_path.exists():
                 save_path.unlink(missing_ok=True)
+            if photo_id is not None:
+                try:
+                    with get_db_connection() as conn:
+                        with conn.cursor() as cursor:
+                            cursor.execute("DELETE FROM photos WHERE id = %s", (photo_id,))
+                except pymysql.MySQLError:
+                    pass
             return jsonify({"message": "Hiba a feltöltés közben."}), 500
 
         return jsonify(format_photo(photo)), 201
@@ -107,6 +128,7 @@ def register_photo_routes(
     @app.delete("/api/photos/<int:photo_id>")
     @login_required
     def delete_photo(photo_id):
+        photo = None
         try:
             with get_db_connection() as conn:
                 with conn.cursor() as cursor:
@@ -121,8 +143,6 @@ def register_photo_routes(
 
                     if photo["owner_user_id"] != current_user_id():
                         return jsonify({"message": "Nincs jogosultság a törléshez."}), 403
-
-                    cursor.execute("DELETE FROM photos WHERE id = %s", (photo_id,))
         except pymysql.MySQLError:
             return jsonify({"message": "Hiba a törlés közben."}), 500
 
@@ -131,6 +151,13 @@ def register_photo_routes(
             if disk_path.exists():
                 disk_path.unlink(missing_ok=True)
         except OSError:
+            return jsonify({"message": "Hiba a törlés közben."}), 500
+
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("DELETE FROM photos WHERE id = %s", (photo_id,))
+        except pymysql.MySQLError:
             return jsonify({"message": "Hiba a törlés közben."}), 500
 
         return jsonify({"message": "Sikeres törlés."}), 200

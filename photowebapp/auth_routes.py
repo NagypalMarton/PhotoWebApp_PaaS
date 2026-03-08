@@ -1,6 +1,19 @@
+import re
+
 import pymysql
 from flask import jsonify, request, session
 from werkzeug.security import check_password_hash, generate_password_hash
+
+
+USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]{3,50}$")
+
+
+def is_password_strong(password: str) -> bool:
+    if len(password) < 8:
+        return False
+    has_letter = any(ch.isalpha() for ch in password)
+    has_digit = any(ch.isdigit() for ch in password)
+    return has_letter and has_digit
 
 
 def register_auth_routes(app, get_db_connection, current_user_id):
@@ -10,10 +23,10 @@ def register_auth_routes(app, get_db_connection, current_user_id):
         username = (payload.get("username") or "").strip()
         password = payload.get("password") or ""
 
-        if len(username) < 3 or len(username) > 50:
-            return jsonify({"message": "A felhasználónév 3-50 karakter legyen."}), 400
-        if len(password) < 6:
-            return jsonify({"message": "A jelszó minimum 6 karakter legyen."}), 400
+        if not USERNAME_PATTERN.fullmatch(username):
+            return jsonify({"message": "A felhasználónév 3-50 karakter legyen (betű, szám, ., _, -)."}), 400
+        if not is_password_strong(password):
+            return jsonify({"message": "A jelszó legalább 8 karakter legyen, tartalmazzon betűt és számot."}), 400
 
         password_hash = generate_password_hash(password)
 

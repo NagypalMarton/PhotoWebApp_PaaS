@@ -8,6 +8,8 @@ Felhőalapú elosztott rendszerek laboratórium (2026) projekt: OpenShift-re ter
 - Képfeltöltés (max. 100 MB) és törlés jogosultságellenőrzéssel
 - Képek listázása és rendezése név vagy dátum szerint
 - Kép megjelenítése a kiválasztott listaelemből
+- Szigorúbb bemeneti validáció (felhasználónév és jelszó szabályok)
+- Robusztusabb upload/delete folyamat (fájl + adatbázis konzisztencia)
 
 ## Technológiai stack
 
@@ -32,8 +34,8 @@ Felhőalapú elosztott rendszerek laboratórium (2026) projekt: OpenShift-re ter
 | --- | --- | --- | --- |
 | `PORT` | nem | `3000` | Flask/Gunicorn port |
 | `SECRET_KEY` | igen | – | Session titkos kulcs |
-| `DB_HOST` | nem | `db` | MySQL host |
-| `DB_PORT` | nem | `3306` | MySQL port |
+| `DB_HOST` | igen | – | MySQL host |
+| `DB_PORT` | igen | – | MySQL port |
 | `DB_NAME` | igen | – | Adatbázis neve |
 | `DB_USER` | igen | – | Adatbázis felhasználó |
 | `DB_PASSWORD` | igen | – | Adatbázis jelszó |
@@ -99,9 +101,20 @@ A [devfile.yaml](devfile.yaml) alapértelmezetten a `build + deploy-k8s-sample` 
 - `POST /api/photos` (`multipart/form-data`: `name`, `photo`)
 - `DELETE /api/photos/:id`
 
+### Bemeneti szabályok
+
+- `POST /api/auth/register`
+  - `username`: 3-50 karakter, engedélyezett karakterek: betűk, számok, `.`, `_`, `-`
+  - `password`: minimum 8 karakter, és tartalmazzon legalább 1 betűt + 1 számot
+- `POST /api/photos`
+  - `name`: kötelező, legfeljebb 40 karakter
+  - `photo`: kötelező, támogatott kiterjesztések: `jpg`, `jpeg`, `png`, `gif`, `webp`
+
 ## Fontos működési megjegyzések
 
 - Feltöltött fájlméret limit: `100 MB` (backend + Nginx oldalon is)
 - Törölni csak a kép tulajdonosa tud
 - A feltöltött képek a `uploads` kötetben tárolódnak
+- A feltöltés ideiglenes fájlba történik, majd csak sikeres DB művelet után kerül végleges névre
+- Feltöltési hiba esetén a backend kompenzáló takarítást végez (fájl/rekord maradványok minimalizálása)
 - A repository OpenShift célkörnyezetre van optimalizálva
