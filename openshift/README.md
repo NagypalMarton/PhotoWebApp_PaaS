@@ -6,8 +6,10 @@ Ez a mappa a PhotoWebApp OpenShift (PaaS) deploy erőforrásait tartalmazza.
 
 A backend és frontend image-ek GitHub Actions-ből kerülnek Docker Hubra minden `push` után:
 
-- `<DOCKERHUB_USERNAME>/photowebapp-backend:latest`
-- `<DOCKERHUB_USERNAME>/photowebapp-frontend:latest`
+  - `<DOCKERHUB_USERNAME>/photowebapp-backend:latest`
+  - `<DOCKERHUB_USERNAME>/photowebapp-frontend:latest`
+  - `<DOCKERHUB_USERNAME>/photowebapp-db:latest`
+  - `<DOCKERHUB_USERNAME>/photowebapp-uploads:latest`
 
 OpenShift oldalon a backend és frontend `Deployment` közvetlenül Docker Hub image-re mutat.
 

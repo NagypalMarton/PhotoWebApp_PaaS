@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: photowebapp-config
+  name: photowebapp-backend-config
   labels:
     app: photowebapp
 data:
@@ -12,7 +12,7 @@ data:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: photowebapp-app-secret
+  name: photowebapp-backend-secret
   labels:
     app: photowebapp
 type: Opaque
@@ -209,22 +209,22 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: backend
+  name: photowebapp-backend
   labels:
-    app: photowebapp
+    app: photowebapp-backend
     component: backend
     deployment: backend
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: photowebapp
+      app: photowebapp-db
       component: backend
       deployment: backend
   template:
     metadata:
       labels:
-        app: photowebapp
+        app: photowebapp-uploads
         component: backend
         deployment: backend
     spec:

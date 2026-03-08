@@ -11,7 +11,7 @@ metadata:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: photowebapp-config
+  name: photowebapp-backend-config
   namespace: photowebapp-paas
   labels:
     app.kubernetes.io/name: photowebapp
@@ -28,11 +28,10 @@ metadata:
   namespace: photowebapp-paas
   labels:
     app.kubernetes.io/name: photowebapp
-    app.kubernetes.io/part-of: PhotoWebApp_PAAS
 type: Opaque
 stringData:
   SECRET_KEY: CHANGE_ME_STRONG_APP_SECRET
-  DB_USER: gallery_user
+    name: photowebapp-backend-secret
   DB_PASSWORD: CHANGE_ME_STRONG_DB_PASSWORD
 ---
 apiVersion: v1
@@ -42,11 +41,10 @@ metadata:
   namespace: photowebapp-paas
   labels:
     app.kubernetes.io/name: photowebapp
-    app.kubernetes.io/part-of: PhotoWebApp_PAAS
 type: Opaque
 stringData:
   MYSQL_ROOT_PASSWORD: CHANGE_ME_STRONG_ROOT_PASSWORD
-  MYSQL_USER: gallery_user
+    name: photowebapp-db-pvc
   MYSQL_PASSWORD: CHANGE_ME_STRONG_DB_PASSWORD
 ---
 apiVersion: v1
@@ -57,11 +55,10 @@ metadata:
   labels:
     app.kubernetes.io/name: mysql
     app.kubernetes.io/part-of: PhotoWebApp_PAAS
-spec:
   accessModes:
     - ReadWriteOnce
   resources:
-    requests:
+    name: photowebapp-uploads-pvc
       storage: 5Gi
 ---
 apiVersion: v1
@@ -72,11 +69,10 @@ metadata:
   labels:
     app.kubernetes.io/name: photowebapp-uploads
     app.kubernetes.io/part-of: PhotoWebApp_PAAS
-spec:
   accessModes:
     - ReadWriteMany
   resources:
-    requests:
+    name: photowebapp-db-headless
       storage: 5Gi
 ---
 apiVersion: v1
@@ -90,11 +86,10 @@ metadata:
 spec:
   clusterIP: None
   selector:
-    app.kubernetes.io/name: mysql
     app.kubernetes.io/component: database
   ports:
     - name: mysql
-      port: 3306
+    name: photowebapp-db
       targetPort: 3306
 ---
 apiVersion: v1
@@ -107,11 +102,10 @@ metadata:
     app.kubernetes.io/part-of: PhotoWebApp_PAAS
 spec:
   selector:
-    app.kubernetes.io/name: mysql
     app.kubernetes.io/component: database
   ports:
     - name: mysql
-      port: 3306
+    name: photowebapp-db
       targetPort: 3306
 ---
 apiVersion: apps/v1
@@ -195,7 +189,6 @@ spec:
               mountPath: /docker-entrypoint-initdb.d/init.sql
               subPath: init.sql
       volumes:
-        - name: mysql-data
           persistentVolumeClaim:
             claimName: mysql-data
         - name: db-init
@@ -226,11 +219,10 @@ data:
       owner_user_id BIGINT UNSIGNED NOT NULL,
       name VARCHAR(40) NOT NULL,
       upload_datetime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      file_path_or_url VARCHAR(255) NOT NULL,
       PRIMARY KEY (id),
       KEY idx_photos_name (name),
       KEY idx_photos_upload_datetime (upload_datetime),
-      CONSTRAINT fk_photos_owner FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE
+    name: photowebapp-backend
     );
 ---
 apiVersion: apps/v1
@@ -315,11 +307,10 @@ spec:
               cpu: 500m
               memory: 512Mi
           volumeMounts:
-            - name: uploads
               mountPath: /app/uploads
       volumes:
         - name: uploads
-          persistentVolumeClaim:
+    name: photowebapp-backend
             claimName: uploads-data
 ---
 apiVersion: v1
@@ -333,7 +324,6 @@ metadata:
     app.kubernetes.io/part-of: PhotoWebApp_PAAS
 spec:
   selector:
-    app.kubernetes.io/name: backend
     app.kubernetes.io/component: api
   ports:
     - name: http
@@ -382,7 +372,6 @@ spec:
             initialDelaySeconds: 20
             periodSeconds: 20
           resources:
-            requests:
               cpu: 50m
               memory: 128Mi
             limits:
@@ -400,7 +389,6 @@ metadata:
     app.kubernetes.io/part-of: PhotoWebApp_PAAS
 spec:
   selector:
-    app.kubernetes.io/name: frontend
     app.kubernetes.io/component: web
   ports:
     - name: http
@@ -412,11 +400,10 @@ kind: HorizontalPodAutoscaler
 metadata:
   name: backend-hpa
   namespace: photowebapp-paas
-  labels:
+      name: photowebapp-backend
     app.kubernetes.io/part-of: PhotoWebApp_PAAS
 spec:
   scaleTargetRef:
-    apiVersion: apps/v1
     kind: Deployment
     name: backend
   minReplicas: 2
@@ -432,7 +419,6 @@ metadata:
     app.kubernetes.io/part-of: PhotoWebApp_PAAS
 spec:
   scaleTargetRef:
-    apiVersion: apps/v1
     kind: Deployment
     name: frontend
   minReplicas: 2
@@ -446,7 +432,6 @@ metadata:
   namespace: photowebapp-paas
   labels:
     app.kubernetes.io/part-of: PhotoWebApp_PAAS
-spec:
   minAvailable: 1
   selector:
     matchLabels:
@@ -460,7 +445,6 @@ metadata:
   namespace: photowebapp-paas
   labels:
     app.kubernetes.io/part-of: PhotoWebApp_PAAS
-spec:
   minAvailable: 1
   selector:
     matchLabels:
@@ -482,7 +466,6 @@ spec:
       http:
         paths:
           - path: /
-            pathType: Prefix
             backend:
               service:
                 name: frontend

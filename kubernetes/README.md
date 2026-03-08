@@ -1,21 +1,29 @@
-# Kubernetes Deployment - PhotoWebApp_PAAS
+# Kubernetes Deployment - PhotoWebApp_PaaS
+
+**Fontos:** A deployment neve legyen egyedi és informatív, ne csak "PhotoWebApp". Példák:
+- photowebapp-backend
+- photowebapp-frontend
+- photowebapp-db
+- photowebapp-uploads
+
+Ez segít azonosítani a komponenseket és elkerülni a névütközéseket.
 
 Ez a mappa a projekt Kubernetes-re szabott, funkcióvesztés nélküli telepítését tartalmazza.
 
 ## Mit hoz létre?
 
-A `kubernetes/photowebapp-paas.yaml` egy több rétegű, skálázható architektúrát hoz létre:
+Az `kubernetes/photowebapp-paas.yaml` egy több rétegű, skálázható architektúrát hoz létre, ahol minden deployment neve egyedi:
 
-- Namespace: `photowebapp-paas`
-- Backend: `Deployment/backend` + `Service/backend`
-- Frontend: `Deployment/frontend` + `Service/frontend`
-- Adatbázis: `StatefulSet/mysql` + `Service/mysql`
-- Ingress: `Ingress/photowebapp`
+* Namespace: `photowebapp-paas`
+* Backend: `Deployment/photowebapp-backend` + `Service/photowebapp-backend`
+* Frontend: `Deployment/photowebapp-frontend` + `Service/photowebapp-frontend`
+* Adatbázis: `StatefulSet/photowebapp-db` + `Service/photowebapp-db`
+* Ingress: `Ingress/photowebapp-frontend`
 - Skálázás: `HPA` backend és frontend réteghez
 - Magas rendelkezésre állás: `PDB` backend és frontend
 - Hálózati szeparáció: `NetworkPolicy` (MySQL csak a backendre nyitott)
 
-Megjegyzés: Kubernetes eroforras-nevekben nem hasznalhato az `PhotoWebApp_PAAS` forma (nagybetu/underscore). Emiatt a technikai eroforrasnevek `photowebapp-paas` alakban szerepelnek, de a `app.kubernetes.io/part-of: PhotoWebApp_PAAS` label tartalmazza a kert nevet.
+Megjegyzés: Kubernetes erőforrás-nevekben nem használható az `PhotoWebApp_PAAS` forma (nagybetű/underscore). Emiatt a technikai erőforrásnevek `photowebapp-paas` alakban szerepelnek, de a `app.kubernetes.io/part-of: PhotoWebApp_PAAS` label tartalmazza a kért nevet. A deployment neve minden komponensnél egyedi (pl. photowebapp-backend).
 
 ## Előfeltételek
 
