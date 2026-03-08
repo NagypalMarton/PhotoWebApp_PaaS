@@ -5,17 +5,20 @@ metadata:
   labels:
     app: photowebapp
     component: backend
+    deployment: backend
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: photowebapp
       component: backend
+      deployment: backend
   template:
     metadata:
       labels:
         app: photowebapp
         component: backend
+        deployment: backend
     spec:
       containers:
         - name: backend
@@ -91,10 +94,12 @@ metadata:
   labels:
     app: photowebapp
     component: backend
+    deployment: backend
 spec:
   selector:
     app: photowebapp
     component: backend
+    deployment: backend
   ports:
     - name: http
       port: 3000
@@ -107,17 +112,20 @@ metadata:
   labels:
     app: photowebapp
     component: frontend
+    deployment: frontend
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: photowebapp
       component: frontend
+      deployment: frontend
   template:
     metadata:
       labels:
         app: photowebapp
         component: frontend
+        deployment: frontend
     spec:
       containers:
         - name: frontend
@@ -153,10 +161,12 @@ metadata:
   labels:
     app: photowebapp
     component: frontend
+    deployment: frontend
 spec:
   selector:
     app: photowebapp
     component: frontend
+    deployment: frontend
   ports:
     - name: http
       port: 8080
