@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-headless
+  namespace: photowebapp-paas
+  labels:
+    app.kubernetes.io/name: mysql
+    app.kubernetes.io/part-of: PhotoWebApp_PAAS
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/component: database
+  ports:
+    - name: mysql
+      port: 3306
