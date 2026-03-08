@@ -36,7 +36,7 @@ commands:
       component: k8s-deploy
       group:
         kind: deploy
-        isDefault: true
+        isDefault: false
   - id: deploy-openshift-stack
     apply:
       component: openshift-stack
