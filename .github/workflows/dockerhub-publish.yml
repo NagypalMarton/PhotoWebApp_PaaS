@@ -18,8 +18,8 @@ jobs:
       matrix:
         include:
           - name: backend
-            context: .
-            dockerfile: ./Dockerfile
+            context: ./backend
+            dockerfile: ./backend/Dockerfile
             image: photowebapp-backend
           - name: frontend
             context: ./frontend

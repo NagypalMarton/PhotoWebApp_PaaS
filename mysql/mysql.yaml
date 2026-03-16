@@ -43,7 +43,7 @@ spec:
     spec:
       containers:
         - name: mysql
-          image: mysql:8.0
+          image: registry.access.redhat.com/rhscl/mysql-80-rhel7
           ports:
             - containerPort: 3306
           resources:
