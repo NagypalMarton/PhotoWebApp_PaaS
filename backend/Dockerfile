@@ -7,9 +7,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+USER root
+RUN mkdir -p /data/uploads && chgrp -R 0 /data && chmod -R g+rwx /data
+USER 1001
+
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-EXPOSE 5000
+EXPOSE 5001
 
-ENTRYPOINT ["gunicorn", "-b", "0.0.0.0:5000", "app:app"]
+ENTRYPOINT ["gunicorn", "-b", "0.0.0.0:5001", "app:app"]

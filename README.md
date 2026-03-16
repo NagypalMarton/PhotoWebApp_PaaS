@@ -1,150 +1,182 @@
-# PhotoWebApp_PaaS
+# Fényképalbum alkalmazás – Dokumentáció
 
-Felhőalapú elosztott rendszerek laboratórium (2026) projekt: OpenShift-re tervezett fotóalbum alkalmazás Flask backenddel, MySQL adattárolással és Nginx alapú frontenddel.
+## Választott környezet
 
-## Fő funkciók
+Az alkalmazás **OpenShift PaaS** platformon fut (OKD). Az OpenShift automatikusan buildeli az image-eket a GitHub repóból, és kezeli a podok életciklusát.
 
-- Regisztráció, bejelentkezés, kijelentkezés
-- Képfeltöltés (max. 100 MB) és törlés jogosultságellenőrzéssel
-- Képek listázása és rendezése név vagy dátum szerint
-- Kép megjelenítése a kiválasztott listaelemből
-- Szigorúbb bemeneti validáció (felhasználónév és jelszó szabályok)
-- Robusztusabb upload/delete folyamat (fájl + adatbázis konzisztencia)
+## Architektúra – Rétegek és kapcsolatok
 
-## Technológiai stack
+Az alkalmazás három egymástól független, konténerizált rétegből áll:
 
-- **Backend:** Flask + Gunicorn ([app.py](app.py))
-- **Adatbázis:** MySQL 8.4 ([db/init.sql](db/init.sql))
-- **Frontend:** statikus HTML + Bootstrap + Nginx reverse proxy ([frontend/index.html](frontend/index.html), [frontend/nginx-cfg/default.conf](frontend/nginx-cfg/default.conf))
-- **Platform:** Docker Hub + OpenShift Deployment + Service + Route ([openshift/openshift-all.yaml](openshift/openshift-all.yaml))
-
-## Projektstruktúra
-
-- [app.py](app.py) – Flask belépési pont (`create_app()`)
-- [photowebapp/](photowebapp/) – backend modulok (route-ok, DB, app factory)
-- [db/init.sql](db/init.sql) – `users` és `photos` táblák
-- [frontend/](frontend/) – kliensoldali felület és Nginx konfiguráció
-- [openshift/](openshift/) – teljes OpenShift manifestek és deployment dokumentáció
-- [kubernetes/](kubernetes/) – vanilla Kubernetes manifestek (multi-tier, skálázható)
-- [devfile.yaml](devfile.yaml) – OpenShift Dev Spaces / Import from Git leírás
-- [scripts/generate-secrets.sh](scripts/generate-secrets.sh) – `CHANGE_ME_*` értékek biztonságos generálása
-
-## Környezeti változók (backend)
-
-| Változó | Kötelező | Alapérték | Leírás |
-| --- | --- | --- | --- |
-| `PORT` | nem | `3000` | Flask/Gunicorn port |
-| `SECRET_KEY` | igen | – | Session titkos kulcs |
-| `DB_HOST` | igen | – | MySQL host |
-| `DB_PORT` | igen | – | MySQL port |
-| `DB_NAME` | igen | – | Adatbázis neve |
-| `DB_USER` | igen | – | Adatbázis felhasználó |
-| `DB_PASSWORD` | igen | – | Adatbázis jelszó |
-
-Referenciaértékek: [.env.example](.env.example)
-
-## Docker Hub CI (minden commit után)
-
-A repository tartalmaz egy GitHub Actions workflow-t: [.github/workflows/dockerhub-publish.yml](.github/workflows/dockerhub-publish.yml).
-
-- Trigger: minden `push` (commit után)
-- Eredmény: a backend és frontend image felpusholása Docker Hubra
-  - `<DOCKERHUB_USERNAME>/photowebapp-backend:latest`
-  - `<DOCKERHUB_USERNAME>/photowebapp-frontend:latest`
-
-Szükséges GitHub repository secret-ek:
-
-- `DOCKERHUB_USERNAME`
-- `DOCKERHUB_TOKEN` (Docker Hub access token)
-
-> Ezeket **Repository secrets**-ként add meg (nem Environment secretként), mert a workflow közvetlenül innen olvassa.
-> A `DOCKERHUB_TOKEN` tokenen legalább **Read + Write** jog kell, különben `401 insufficient scopes` hibát kapsz.
-
-Az `openshift/openshift-all-generated.yaml` fájlt a GitHub Actions automatikusan előállítja/frissíti a `DOCKERHUB_USERNAME` Repository Secret alapján.
-
-## OpenShift telepítés (CLI nélkül, automatikus frissítéssel)
-
-1. OpenShift Console-ban (`+Add` → `Import YAML`) importáld az [openshift/openshift-all-generated.yaml](openshift/openshift-all-generated.yaml) tartalmát.
-
-2. Ugyanitt cseréld le a `CHANGE_ME_STRONG_*` secret placeholdereket erős, egyedi értékekre.
-
-3. Kész.
-
-Az automatikus működés ezután:
-
-- minden commit/release után a GitHub Actions feltolja az új image-et Docker Hubra,
-- OpenShift deploy esetén a backend/frontend közvetlenül ezeket a Docker Hub image-eket használja.
-
-Ha ragaszkodsz a scriptes secret-generáláshoz, opcionálisan használható helyileg:
-
-   ```bash
-   bash scripts/generate-secrets.sh
-   ```
-
-Részletes OpenShift leírás: [openshift/README.md](openshift/README.md)
-
-## Kubernetes telepítés (multi-tier, skálázható)
-
-A Kubernetes csomag a [kubernetes/photowebapp-paas.yaml](kubernetes/photowebapp-paas.yaml) fájlban található.
-
-Felépítés:
-
-- `frontend` réteg (Deployment + Service)
-- `backend` réteg (Deployment + Service)
-- `mysql` réteg (StatefulSet + Service)
-- `Ingress` publikus belépési ponttal
-- `HPA` backend és frontend autoscalinghez
-- `PDB` a gördülékeny karbantartáshoz
-
-Telepítés:
-
-```bash
-kubectl apply -f kubernetes/photowebapp-paas.yaml
+```
+Böngésző
+    │  HTTP :80
+    ▼
+┌─────────────────────────────┐
+│  Frontend (Flask + Gunicorn) │  :5000
+│  Jinja2 sablonok, Bootstrap  │
+└─────────────┬───────────────┘
+              │  HTTP REST :5001
+              ▼
+┌─────────────────────────────┐
+│  Backend  (Flask + Gunicorn) │  :5001
+│  REST API, üzleti logika     │
+│  Fájl tárolás (/data/uploads)│
+└─────────────┬───────────────┘
+              │  TCP :3306 (SQLAlchemy / PyMySQL)
+              ▼
+┌─────────────────────────────┐
+│  MySQL 8.0                   │  :3306
+│  Felhasználók, kép metaadatok│
+└─────────────────────────────┘
 ```
 
-Gyors ellenőrzés:
+### Frontend réteg
+
+- **Technológia:** Python 3.12, Flask 3.1, Gunicorn, Jinja2, Bootstrap 5.3
+- **Feladat:** Szerver-oldali HTML renderelés, HTTP sablonvezérelt UI
+- **Képmegjelenítés:** Proxy route-on keresztül (`/photo/<id>/image`) kéri le a képfájlt a backendtől, így a böngészőnek nem kell közvetlenül a backend service-t elérnie
+- **Session kezelés:** A bejelentkezési token szerver oldali Flask session-ban tárolódik
+
+### Backend réteg
+
+- **Technológia:** Python 3.12, Flask 3.1, Gunicorn, Flask-SQLAlchemy, PyMySQL, Werkzeug, itsdangerous
+- **Feladat:** REST API biztosítása a frontend számára, autentikáció, fájl feltöltés kezelése
+- **Autentikáció:** Token-alapú (`itsdangerous.URLSafeTimedSerializer`), 24 órás lejárattal, `Authorization: Bearer <token>` fejléccel
+- **Fájl tárolás:** `/data/uploads` könyvtár (OpenShift-kompatibilis: `chgrp -R 0 / chmod -R g+rwx`)
+
+### Adatbázis réteg
+
+- **Technológia:** MySQL 8.0
+- **Táblák:**
+  - `users`: `id`, `username` (max 80 kar., egyedi), `password_hash`
+  - `photos`: `id`, `name` (max 40 kar.), `filename`, `uploaded_at`, `owner_id` (FK → users)
+- **OpenShift:** PersistentVolumeClaim (5Gi) biztosítja az adatok megőrzését
+
+## REST API végpontok
+
+| Metódus | Végpont | Auth | Leírás |
+|---|---|---|---|
+| GET | `/api/health` | – | Állapot ellenőrzés |
+| POST | `/api/register` | – | Regisztráció |
+| POST | `/api/login` | – | Bejelentkezés, tokent ad vissza |
+| GET | `/api/photos?sort=date\|name` | – | Fotók listázása |
+| POST | `/api/photos` | ✅ | Fotó feltöltése |
+| GET | `/api/photos/<id>` | – | Fotó metaadatai |
+| DELETE | `/api/photos/<id>` | ✅ | Fotó törlése (csak saját) |
+| GET | `/api/photos/<id>/image` | – | Képfájl visszaadása |
+
+## Megvalósított funkciók
+
+- Felhasználókezelés: regisztráció, belépés, kilépés
+- Fényképfeltöltés (csak bejelentkezett felhasználónak)
+- Fényképtörlés (csak bejelentkezett felhasználónak, csak saját kép)
+- Minden képhez: név (max. 40 karakter) és feltöltési dátum (`ÉÉÉÉ-HH-NN ÓÓ:PP`)
+- Lista névvagy dátum szerinti rendezéssel
+- Listaelemre kattintva a kép részletes megjelenítése
+
+## Skálázhatóság
+
+Mindhárom réteg önállóan skálázható az OpenShift-ben:
 
 ```bash
-kubectl get all -n photowebapp-paas
-kubectl get ingress -n photowebapp-paas
-kubectl get hpa -n photowebapp-paas
+oc scale deployment frontend --replicas=3
+oc scale deployment backend  --replicas=3
 ```
 
-Részletes Kubernetes leírás: [kubernetes/README.md](kubernetes/README.md)
+A MySQL egy példányban fut PVC-vel, a frontend és backend állapotmentes – tetszőleges számú példányban futtatható.
 
-## Devfile import (OpenShift Console)
+## Könyvtárstruktúra
 
-A [devfile.yaml](devfile.yaml) alapértelmezetten a `build + deploy-k8s-sample` kompozit parancsot futtatja (`deploy`), mert az OpenShift Import from Git ehhez tud megbízhatóan `Deployment` definíciót felismerni.
+```
+PhotoWebApp_FLASK/
+├── backend/
+│   ├── app.py              # Flask REST API
+│   ├── backend.yaml        # OpenShift: PVC, Deployment, Service
+│   ├── Dockerfile
+│   └── requirements.txt
+├── frontend/
+│   ├── app.py              # Flask UI
+│   ├── frontend.yaml       # OpenShift: Deployment, Service, Route
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── templates/          # Jinja2 sablonok
+├── mysql/
+│   ├── mysql.yaml          # OpenShift: Secret, PVC, Deployment, Service
+│   └── Dockerfile          # OpenShift-kompatibilis MySQL image (UBI9 + mysql-server)
+├── openshift/
+│   └── photowebapp-build.yaml  # ImageStream-ek + BuildConfig-ok
+└── k8s/
+    └── photowebapp.yaml    # Lokális Kubernetes manifest (fejlesztéshez)
+```
 
-- A teljes OpenShift stack deploy külön paranccsal elérhető: `deploy-openshift-stack`.
-- A k8s minta deploy elérhető `deploy-k8s-devfile-only` néven is ([openshift/devfile-k8s-deploy.yaml](openshift/devfile-k8s-deploy.yaml)).
-- A devfile endpoint explicit `targetPort: 8080` beállítással rendelkezik.
+## Fejlesztői megjegyzések
 
-## API összefoglaló
+A telepítés kizárólag az OpenShift webes konzolán keresztül történik, `oc` CLI nélkül.
 
-- `GET /api/health`
-- `POST /api/auth/register`
-- `POST /api/auth/login`
-- `POST /api/auth/logout`
-- `GET /api/auth/me`
-- `GET /api/photos?sort=name|date&order=asc|desc`
-- `POST /api/photos` (`multipart/form-data`: `name`, `photo`)
-- `DELETE /api/photos/:id`
+### 1) Projekt létrehozás
 
-### Bemeneti szabályok
+1. OpenShift Console → **Administrator** nézet
+2. **Home → Projects → Create Project**: név legyen `photowebapp`
 
-- `POST /api/auth/register`
-  - `username`: 3-50 karakter, engedélyezett karakterek: betűk, számok, `.`, `_`, `-`
-  - `password`: minimum 8 karakter, és tartalmazzon legalább 1 betűt + 1 számot
-- `POST /api/photos`
-  - `name`: kötelező, legfeljebb 40 karakter
-  - `photo`: kötelező, támogatott kiterjesztések: `jpg`, `jpeg`, `png`, `gif`, `webp`
+### 2) Build infrastruktúra – ImageStream-ek és BuildConfig-ok
 
-## Fontos működési megjegyzések
+1. **+Add → Import YAML**
+2. Illeszd be az [`openshift/photowebapp-build.yaml`](openshift/photowebapp-build.yaml) teljes tartalmát
+3. Kattints **Create**
+4. **Builds → BuildConfigs** – a `photowebapp-backend-build` és `photowebapp-frontend-build` BuildConfig-ok automatikusan elindulnak (ConfigChange trigger)
+5. Várd meg, amíg mindkét build sikeresen befejezik (**Builds → Builds** → zöld pipa)
 
-- Feltöltött fájlméret limit: `100 MB` (backend + Nginx oldalon is)
-- Törölni csak a kép tulajdonosa tud
-- A feltöltött képek a `uploads` kötetben tárolódnak
-- A feltöltés ideiglenes fájlba történik, majd csak sikeres DB művelet után kerül végleges névre
-- Feltöltési hiba esetén a backend kompenzáló takarítást végez (fájl/rekord maradványok minimalizálása)
-- A repository OpenShift célkörnyezetre van optimalizálva
+### 3) MySQL deploy
+
+1. **+Add → Import YAML**
+2. Illeszd be az [`mysql/mysql.yaml`](mysql/mysql.yaml) teljes tartalmát
+3. Kattints **Create**
+4. **Workloads → Pods** – ellenőrizd, hogy a `mysql` pod **Running** állapotú
+
+### 4) Backend deploy
+
+1. **+Add → Import YAML**
+2. Illeszd be a [`backend/backend.yaml`](backend/backend.yaml) teljes tartalmát
+3. Kattints **Create**
+4. A Deployment az ImageStream trigger segítségével automatikusan frissül, amint a `photowebapp-backend:latest` kép elérhető
+
+### 5) Frontend deploy
+
+1. **+Add → Import YAML**
+2. Illeszd be a [`frontend/frontend.yaml`](frontend/frontend.yaml) teljes tartalmát
+3. Kattints **Create**
+4. A Deployment az ImageStream trigger segítségével automatikusan frissül, amint a `photowebapp-frontend:latest` kép elérhető
+5. **Networking → Routes** – a `frontend` route-on érhető el az alkalmazás (HTTPS)
+
+### 6) Automatikus build GitHub push-ra (Webhook)
+
+A `photowebapp-build.yaml`-ban lévő BuildConfig-ok GitHub webhook triggert tartalmaznak. A webhook beállításával minden `git push` után új build és automatikus redeployment indul.
+
+**Webhook URL-ek kinyerése az OpenShift UI-ból:**
+
+1. **Administrator → Builds → BuildConfigs**
+2. Nyisd meg a `photowebapp-backend-build` BuildConfigot
+3. **Configuration** fül → **Webhooks** szakasz → **GitHub** sor → **Copy URL with Secret**
+4. Ismételd meg a `photowebapp-frontend-build` BuildConfiggal
+
+**Webhook hozzáadása GitHub-on:**
+
+1. GitHub repo → **Settings → Webhooks → Add webhook**
+2. **Payload URL**: a másolt OpenShift webhook URL
+3. **Content type**: `application/json`
+4. **Trigger**: Just the push event
+5. Mentés után: a zöld pipa jelzi a sikeres kapcsolatot
+
+Ezután minden `git push` hatására az OpenShift automatikusan buildeli és redeployolja az érintett podokat.
+
+## Megjegyzések
+
+- A feltöltött képek PersistentVolumeClaim (`uploads-pvc`, 5Gi) volume-on tárolódnak a backendben – pod újraindítás esetén megmaradnak.
+- A MySQL adatai PVC-n tárolódnak, így pod újraindítás esetén megmaradnak.
+- A jelszavak a `mysql/mysql.yaml`-ban lévő `Secret`-ben találhatók – éles környezetben ezeket külső titkos kezelőből (pl. Vault) kellene betölteni.
+- A `mysql/Dockerfile` most már egy Red Hat UBI9 alapú, OpenShift-kompatibilis MySQL image-et készít. Használható saját buildhez, ha nem a hivatalos MySQL image-t szeretnéd használni.
+
+Hasznos linkek:
+- [OpenShift Documentation - creating-images ](https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/images/creating-images)
+- [OpenShift Documentation - building_applications](https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/building_applications/index)

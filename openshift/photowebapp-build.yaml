@@ -1,0 +1,89 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: photowebapp-webhook-secret
+type: Opaque
+stringData:
+  WebHookSecretKey: 11574e8c6d70b1e5cf3871aff4710b9526a43fa4
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: photowebapp-backend
+spec:
+  lookupPolicy:
+    local: true
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: photowebapp-frontend
+spec:
+  lookupPolicy:
+    local: true
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: photowebapp-backend-build
+spec:
+  runPolicy: Serial
+  source:
+    type: Git
+    git:
+      uri: https://github.com/NagypalMarton/PhotoWebApp_PaaS.git
+      ref: main
+    contextDir: backend
+  strategy:
+    type: Docker
+    dockerStrategy: {}
+  output:
+    to:
+      kind: ImageStreamTag
+      name: photowebapp-backend:latest
+  triggers:
+    - type: GitHub
+      github:
+        secretReference:
+          name: photowebapp-webhook-secret
+    - type: ImageChange
+    - type: ConfigChange
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: photowebapp-frontend-build
+spec:
+  runPolicy: Serial
+  source:
+    type: Git
+    git:
+      uri: https://github.com/NagypalMarton/PhotoWebApp_PaaS.git
+      ref: main
+    contextDir: frontend
+  strategy:
+    type: Docker
+    dockerStrategy: {}
+  output:
+    to:
+      kind: ImageStreamTag
+      name: photowebapp-frontend:latest
+  triggers:
+    - type: GitHub
+      github:
+        secretReference:
+          name: photowebapp-webhook-secret
+    - type: ImageChange
+    - type: ConfigChange
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+spec:
+  selector:
+    app: mysql
+  ports:
+    - protocol: TCP
+      port: 3306
+      targetPort: 3306
