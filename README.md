@@ -96,11 +96,17 @@ PhotoWebApp_PaaS/
 │   ├── Dockerfile
 │   ├── requirements.txt
 │   └── templates/                         # Jinja2 sablonok
+├── locust/
+│   ├── locustfile.py                      # Terhelésteszt – minden API funkciót lefed
+│   ├── requirements.txt
+│   ├── Dockerfile
+│   └── locust-openshift.yaml             # Locust telepítése OpenShift-be (felhőből való futtatás)
 ├── mysql/
 │   ├── mysql.yaml                         # Secret, PVC, Deployment, Service
 │   └── Dockerfile                         # UBI9-alapú egyedi MySQL image
 ├── openshift/
-│   └── photowebapp-build.yaml             # ImageStream-ek + BuildConfig-ok
+│   ├── photowebapp-build.yaml             # ImageStream-ek + BuildConfig-ok
+│   └── hpa.yaml                           # HorizontalPodAutoscaler – frontend és backend
 └── k8s/
     └── photowebapp.yaml                   # Lokális Kubernetes manifest (fejlesztéshez)
 ```
@@ -163,6 +169,99 @@ Az OpenShift maga buildeli az image-eket közvetlenül a GitHub repóból, Docke
 3. **Content type**: `application/json`
 4. **Trigger**: Just the push event
 5. Mentés után: a zöld pipa jelzi a sikeres kapcsolatot
+
+---
+
+## Automatikus skálázás (HPA)
+
+A frontend és a backend réteg `HorizontalPodAutoscaler` segítségével CPU-kihasználtság alapján automatikusan skálázódik.
+
+| Komponens | Min replika | Max replika | CPU célkihasználtság |
+|-----------|:-----------:|:-----------:|:--------------------:|
+| frontend  | 1           | 5           | 50 %                 |
+| backend   | 1           | 5           | 50 %                 |
+
+A CPU request értékek szándékosan alacsonyak (**50m request / 200m limit**), hogy a terhelésteszt kis terhelés esetén is kiváltsa a skálázást.
+
+**Megjegyzés a backendről:** Az `uploads-pvc` PVC `ReadWriteOnce` módban van, tehát a feltöltött képfájlok csak az azt felcsatoló podból érhetők el. Ha a klaszter storage class-ja támogat `ReadWriteMany` hozzáférési módot (pl. CephFS), módosítsd a `backend.yaml`-ban a PVC `accessModes` mezőjét. Az autentikáció és az adatbázis-műveletek RWO esetén is párhuzamosan skálázódnak.
+
+### HPA telepítése
+
+```bash
+# 1. Telepítsd a Deployment-eket (ha még nem tetted meg):
+oc apply -f backend/backend.yaml
+oc apply -f frontend/frontend.yaml
+
+# 2. Alkalmazd az HPA konfigurációt:
+oc apply -f openshift/hpa.yaml
+
+# 3. Ellenőrizd az állapotot:
+oc get hpa
+oc describe hpa frontend-hpa
+oc describe hpa backend-hpa
+```
+
+### Skálázás megfigyelése terhelés közben
+
+```bash
+# HPA állapot folyamatos figyelése:
+watch oc get hpa
+
+# Podok számának változása:
+watch oc get pods -l app=frontend
+watch oc get pods -l app=backend
+```
+
+---
+
+## Terhelésteszt (Locust)
+
+A `locust/` könyvtár tartalmazza a Python-alapú [Locust](https://locust.io) terhelésteszt konfigurációját.
+
+### Lefedett API funkciók
+
+| Feladat | Végpont | Relatív arány |
+|---------|---------|:-------------:|
+| Állapot-ellenőrzés | `GET /api/health` | 1× |
+| Fotólista (dátum) | `GET /api/photos` | 4× |
+| Fotólista (név) | `GET /api/photos?sort=name` | 2× |
+| Fotó feltöltése | `POST /api/photos` | 3× |
+| Fotó megtekintése | `GET /api/photos/<id>` + `/image` | 3× |
+| Fotó törlése | `DELETE /api/photos/<id>` | 1× |
+
+Minden virtuális felhasználó `on_start`-kor regisztrál és bejelentkezik, majd a fenti feladatokat vegyesen hajtja végre 1–3 másodperces várakozásokkal.
+
+### Futtatás OpenShift-ből (felhőből)
+
+A feladatleírás előírja, hogy a terhelésteszt felhőből fusson. A Locust a `photowebapp` névtéren belül deployolható, ahonnan közvetlenül eléri a backend service-t.
+
+```bash
+oc apply -f locust/locust-openshift.yaml
+
+# Web UI URL:
+oc get route locust
+```
+
+A megjelenő HTTPS URL-en érhető el a Locust web felülete. Ajánlott beállítások:
+
+- **Number of users:** 20–50
+- **Spawn rate:** 5 user/s
+- **Host:** `http://backend:5001`
+
+### Lokális futtatás (fejlesztéshez)
+
+```bash
+pip install locust
+cd locust
+locust --host http://<frontend-route-url>
+# Böngészőben: http://localhost:8089
+```
+
+### Locust eltávolítása
+
+```bash
+oc delete -f locust/locust-openshift.yaml
+```
 
 ---
 
