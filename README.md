@@ -2,10 +2,7 @@
 
 ## Választott környezet
 
-Az alkalmazás **OpenShift PaaS** platformon fut (OKD). Két telepítési megközelítés támogatott:
-
-- **A) Docker Hub + GitHub Actions** – a CI/CD pipeline buildeli és tolja fel a képeket Docker Hubra, az OpenShift ezekből húzza le az image-eket.
-- **B) OpenShift BuildConfig** – az OpenShift maga buildeli az image-eket közvetlenül a GitHub repóból.
+Az alkalmazás **OpenShift PaaS** platformon fut (OKD). Az image-eket az OpenShift maga buildeli közvetlenül a GitHub repóból (OpenShift BuildConfig).
 
 ---
 
@@ -84,35 +81,18 @@ Böngésző
 
 ---
 
-## Skálázhatóság
-
-Mindhárom réteg önállóan skálázható az OpenShift-ben:
-
-```bash
-oc scale deployment frontend --replicas=3
-oc scale deployment backend  --replicas=3
-```
-
-A MySQL egy példányban fut PVC-vel, a frontend és backend állapotmentes – tetszőleges számú példányban futtatható.
-
----
-
 ## Könyvtárstruktúra
 
 ```
 PhotoWebApp_PaaS/
-├── .github/
-│   └── workflows/
-│       ├── dockerhub-publish.yml          # CI: build + push Docker Hub-ra (A megközelítés)
-│       └── openshift-manifest-render.yml  # CI: OpenShift manifest generálás (A megközelítés)
 ├── backend/
 │   ├── app.py                             # Flask REST API
-│   ├── backend.yaml                       # OpenShift ImageStream-alapú Deployment + PVC + Service (B megközelítés)
+│   ├── backend.yaml                       # OpenShift ImageStream-alapú Deployment + PVC + Service
 │   ├── Dockerfile
 │   └── requirements.txt
 ├── frontend/
 │   ├── app.py                             # Flask UI
-│   ├── frontend.yaml                      # OpenShift ImageStream-alapú Deployment + Service + Route (B megközelítés)
+│   ├── frontend.yaml                      # OpenShift ImageStream-alapú Deployment + Service + Route
 │   ├── Dockerfile
 │   ├── requirements.txt
 │   └── templates/                         # Jinja2 sablonok
@@ -120,82 +100,16 @@ PhotoWebApp_PaaS/
 │   ├── mysql.yaml                         # Secret, PVC, Deployment, Service
 │   └── Dockerfile                         # UBI9-alapú egyedi MySQL image
 ├── openshift/
-│   ├── photowebapp-build.yaml             # ImageStream-ek + BuildConfig-ok (B megközelítés)
-│   ├── openshift-all.yaml                 # Teljes stack template (A megközelítés – CHANGE_ME placeholder)
-│   ├── openshift-all-generated.yaml       # Generált manifest valódi Docker Hub névtérrel (CI hozza létre)
-│   ├── redeploy-app-only.yaml             # Backend + Frontend Deployment template (A megközelítés)
-│   └── redeploy-app-only-generated.yaml   # Generált redeploy manifest (CI hozza létre)
+│   └── photowebapp-build.yaml             # ImageStream-ek + BuildConfig-ok
 └── k8s/
     └── photowebapp.yaml                   # Lokális Kubernetes manifest (fejlesztéshez)
 ```
 
 ---
 
-## Telepítés – A megközelítés: Docker Hub + GitHub Actions
+## Telepítés – OpenShift BuildConfig
 
-Ebben a megközelítésben a GitHub Actions buildeli és tolja fel az image-eket a Docker Hubra. Az OpenShift ezeket húzza le közvetlenül.
-
-### Előfeltételek
-
-A GitHub repóban be kell állítani a következő **Repository Secrets**-eket:
-
-| Secret neve | Leírás |
-|---|---|
-| `DOCKERHUB_USERNAME` | Docker Hub felhasználónév / szervezet neve |
-| `DOCKERHUB_TOKEN` | Docker Hub access token |
-
-### GitHub Actions workflow-ok
-
-#### `dockerhub-publish.yml` – Image build és push
-
-Minden `push` eseményre (és release publikálásra) lefut:
-1. Buildeli a `backend/Dockerfile`-t → `<DOCKERHUB_USERNAME>/photowebapp-backend:latest`
-2. Buildeli a `frontend/Dockerfile`-t → `<DOCKERHUB_USERNAME>/photowebapp-frontend:latest`
-3. Mindkét image-et feltölti Docker Hubra
-
-#### `openshift-manifest-render.yml` – Manifest generálás
-
-Minden `push` eseményre lefut:
-1. A `openshift/openshift-all.yaml` template-ben a `CHANGE_ME_DOCKERHUB_USERNAME` helyőrzőt kicseréli a `DOCKERHUB_USERNAME` secret értékére → `openshift/openshift-all-generated.yaml`
-2. Ugyanezt elvégzi a `openshift/redeploy-app-only.yaml`-on → `openshift/redeploy-app-only-generated.yaml`
-3. A generált fájlokat automatikusan commitálja a repóba
-
-### OpenShift telepítési lépések
-
-#### 1) Projekt létrehozás
-
-1. OpenShift Console → **Administrator** nézet
-2. **Home → Projects → Create Project**: név legyen `photowebapp`
-
-#### 2) MySQL deploy
-
-1. **+Add → Import YAML**
-2. Illeszd be a [`mysql/mysql.yaml`](mysql/mysql.yaml) tartalmát
-3. **Fontos:** a `photowebapp-secrets` Secret-ben cseréld le az összes `CHANGE_THIS_*` értéket erős jelszavakra, és a `DATABASE_URL`-t tartsd szinkronban a `MYSQL_PASSWORD`-del
-4. Kattints **Create**
-5. **Workloads → Pods** – ellenőrizd, hogy a `mysql` pod **Running** állapotú
-
-#### 3) Teljes alkalmazás deploy (első telepítés)
-
-1. Várd meg, amíg a CI lefut és létrejön az `openshift/openshift-all-generated.yaml`
-2. **+Add → Import YAML**
-3. Illeszd be az [`openshift/openshift-all-generated.yaml`](openshift/openshift-all-generated.yaml) tartalmát
-4. Kattints **Create**
-5. **Networking → Routes** – a `frontend` route-on érhető el az alkalmazás (HTTPS)
-
-#### 4) Csak az alkalmazás újratelepítése (frissítés)
-
-Ha csak a backend és/vagy frontend képet frissítetted:
-
-1. **+Add → Import YAML**
-2. Illeszd be az [`openshift/redeploy-app-only-generated.yaml`](openshift/redeploy-app-only-generated.yaml) tartalmát
-3. Kattints **Create** (az `oc apply` szemantikájával frissíti a meglévő Deployment-eket)
-
----
-
-## Telepítés – B megközelítés: OpenShift BuildConfig
-
-Ebben a megközelítésben az OpenShift maga buildeli az image-eket közvetlenül a GitHub repóból, Docker Hub nem szükséges.
+Az OpenShift maga buildeli az image-eket közvetlenül a GitHub repóból, Docker Hub nem szükséges.
 
 ### 1) Projekt létrehozás
 
@@ -212,7 +126,11 @@ Ebben a megközelítésben az OpenShift maga buildeli az image-eket közvetlenü
 
 ### 3) MySQL deploy
 
-(Lásd fentebb az A megközelítésnél.)
+1. **+Add → Import YAML**
+2. Illeszd be a [`mysql/mysql.yaml`](mysql/mysql.yaml) tartalmát
+3. **Fontos:** a `photowebapp-secrets` Secret-ben cseréld le az összes `CHANGE_THIS_*` értéket erős jelszavakra, és a `DATABASE_URL`-t tartsd szinkronban a `MYSQL_PASSWORD`-del
+4. Kattints **Create**
+5. **Workloads → Pods** – ellenőrizd, hogy a `mysql` pod **Running** állapotú
 
 ### 4) Backend deploy
 
@@ -255,10 +173,3 @@ Ebben a megközelítésben az OpenShift maga buildeli az image-eket közvetlenü
 - A MySQL image a hivatalos Red Hat registryből származik: `registry.access.redhat.com/rhscl/mysql-80-rhel7`.
 - A `mysql/mysql.yaml`-ban lévő Secret-ben minden `CHANGE_THIS_*` értéket éles jelszóra kell cserélni az alkalmazás élesítése előtt.
 - A `k8s/photowebapp.yaml` fejlesztési/tesztelési célra szolgál lokális Kubernetes clusterhez (pl. Minikube, Kind).
-
----
-
-## Hasznos linkek
-
-- [OpenShift Documentation – Creating images](https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/images/creating-images)
-- [OpenShift Documentation – Building applications](https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/building_applications/index)
