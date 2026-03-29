@@ -76,7 +76,7 @@ Böngésző
 - Fényképfeltöltés (csak bejelentkezett felhasználónak)
 - Fényképtörlés (csak bejelentkezett felhasználónak, csak saját kép)
 - Minden képhez: név (max. 40 karakter) és feltöltési dátum (`ÉÉÉÉ-HH-NN ÓÓ:PP`)
-- Lista névvagy dátum szerinti rendezéssel
+- Lista név vagy dátum szerinti rendezéssel
 - Listaelemre kattintva a kép részletes megjelenítése
 
 ---
@@ -190,14 +190,10 @@ A CPU request értékek szándékosan alacsonyak (**50m request / 200m limit**),
 ### HPA telepítése
 
 ```bash
-# 1. Telepítsd a Deployment-eket (ha még nem tetted meg):
-oc apply -f backend/backend.yaml
-oc apply -f frontend/frontend.yaml
-
-# 2. Alkalmazd az HPA konfigurációt:
+# 1. Alkalmazd az HPA konfigurációt:
 oc apply -f openshift/hpa.yaml
 
-# 3. Ellenőrizd az állapotot:
+# 2. Ellenőrizd az állapotot:
 oc get hpa
 oc describe hpa frontend-hpa
 oc describe hpa backend-hpa
