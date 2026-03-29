@@ -4,7 +4,9 @@ metadata:
   name: photowebapp-webhook-secret
 type: Opaque
 stringData:
-  WebHookSecretKey: 11574e8c6d70b1e5cf3871aff4710b9526a43fa4
+  # This secret is used for GitHub webhook triggers. You can set any value here,
+  # but it must match the secret you configure in your GitHub webhook settings.
+  webhookSecret: CHANGE_THIS_WEBHOOK_SECRET 
 ---
 apiVersion: image.openshift.io/v1
 kind: ImageStream
