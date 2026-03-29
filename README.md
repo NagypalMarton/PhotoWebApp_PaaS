@@ -130,6 +130,8 @@ Az OpenShift maga buildeli az image-eket közvetlenül a GitHub repóból, Docke
 4. **Builds → BuildConfigs** – a `photowebapp-backend-build` és `photowebapp-frontend-build` automatikusan elindulnak (ConfigChange trigger)
 5. Várd meg, amíg mindkét build sikeresen befejezik (**Builds → Builds** → zöld pipa)
 
+**Fontos:** A webhook secret kulcsa `WebHookSecretKey` (ez az OpenShift követelménye). Ha ezt a kulcsot módosítod, a GitHub webhook beállításoknál is ugyanezt az értéket kell használnod.
+
 ### 3) MySQL deploy
 
 1. **+Add → Import YAML**
