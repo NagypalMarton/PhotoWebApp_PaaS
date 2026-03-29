@@ -9,6 +9,10 @@
       <option value="date" {% if sort == 'date' %}selected{% endif %}>Dátum szerint</option>
       <option value="name" {% if sort == 'name' %}selected{% endif %}>Név szerint</option>
     </select>
+    <select id="order" name="order" class="form-select" onchange="this.form.submit()">
+      <option value="desc" {% if order == 'desc' %}selected{% endif %}>Csökkenő</option>
+      <option value="asc" {% if order == 'asc' %}selected{% endif %}>Növekvő</option>
+    </select>
   </form>
 </div>
 

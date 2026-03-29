@@ -123,10 +123,18 @@ def login():
 @app.route("/api/photos", methods=["GET"])
 def list_photos():
     sort = request.args.get("sort", "date")
+    order = request.args.get("order", "desc")
+    
     if sort == "name":
-        query = Photo.query.order_by(Photo.name.asc())
+        if order == "asc":
+            query = Photo.query.order_by(Photo.name.asc())
+        else:
+            query = Photo.query.order_by(Photo.name.desc())
     else:
-        query = Photo.query.order_by(Photo.uploaded_at.desc())
+        if order == "asc":
+            query = Photo.query.order_by(Photo.uploaded_at.asc())
+        else:
+            query = Photo.query.order_by(Photo.uploaded_at.desc())
 
     photos = [
         {

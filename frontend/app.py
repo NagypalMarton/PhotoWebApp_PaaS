@@ -23,8 +23,9 @@ def backend(path: str) -> str:
 @app.route("/")
 def index():
     sort = request.args.get("sort", "date")
+    order = request.args.get("order", "desc")
     try:
-        response = requests.get(backend(f"/api/photos?sort={sort}"), timeout=10)
+        response = requests.get(backend(f"/api/photos?sort={sort}&order={order}"), timeout=10)
         photos = response.json().get("photos", []) if response.ok else []
     except requests.RequestException:
         photos = []
@@ -34,6 +35,7 @@ def index():
         "index.html",
         photos=photos,
         sort=sort,
+        order=order,
         logged_in=bool(session.get("token")),
         username=session.get("username"),
     )
