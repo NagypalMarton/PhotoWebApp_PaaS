@@ -6,7 +6,7 @@ type: Opaque
 stringData:
   # This secret is used for GitHub webhook triggers. You can set any value here,
   # but it must match the secret you configure in your GitHub webhook settings.
-  webhookSecret: CHANGE_THIS_WEBHOOK_SECRET 
+  webhookSecret: 7c9c3a5db73ce30c24d6e52a84fb148b7870f70ce51f33a1674ac80ef19acaa5 
 ---
 apiVersion: image.openshift.io/v1
 kind: ImageStream
