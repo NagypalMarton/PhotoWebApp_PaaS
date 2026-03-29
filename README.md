@@ -265,6 +265,143 @@ oc delete -f locust/locust-openshift.yaml
 
 ---
 
+## Task 2: Automatikus skálázás és terheléseszt (OpenShift PaaS)
+
+### Automatikus skálázás konfigurációja
+
+A frontend és backend rétegek `HorizontalPodAutoscaler` (HPA) segítségével CPU-kihasználtság alapján automatikusan skálázódnak 1-5 replika között.
+
+| Komponens | Min replika | Max replika | CPU célkihasználtság | Skálázási viselkedés |
+|-----------|:-----------:|:-----------:|:--------------------:|---------------------|
+| frontend  | 1           | 5           | 50 %                 | +2 pod/30s (felfelé), +1 pod/60s (lefelé) |
+| backend   | 1           | 5           | 50 %                 | +2 pod/30s (felfelé), +1 pod/60s (lefelő) |
+
+**Skálázási viselkedés:**
+- **Felfelé skálázás:** 0 másodperc stabilizációs idő (azonnali reakció)
+- **Lefelé skálázás:** 60 másodperc stabilizációs idő (hogy ne ugorjon fel/le)
+
+**Erőforrás kérések (per pod):**
+- Frontend: 100m CPU (kérés) / 200m CPU (limit), 128Mi memória (kérés) / 256Mi (limit)
+- Backend: 100m CPU (kérés) / 500m CPU (limit), 128Mi memória (kérés) / 512Mi (limit)
+- MySQL: 200m CPU (kérés) / 500m CPU (limit), 512Mi memória (kérés) / 1Gi (limit)
+
+**Fontos megjegyzés a backendről:** Az `uploads-pvc` PVC `ReadWriteOnce` (RWO) módban van, tehát a feltöltött képfájlok csak az azt felcsatoló podból érhetők el. Ha a klaszter storage class-ja támogat `ReadWriteMany` (RWX) hozzáférési módot (pl. CephFS, NFS), módosítsd az `openshift/openshift-all.yaml`-ban az `uploads-pvc` `accessModes` mezőjét. Az autentikáció és az adatbázis-műveletek RWO esetén is párhuzamosan skálázódnak.
+
+### HPA telepítése
+
+```bash
+# 1. Alkalmazd az összes konfigurációt (HPA is tartalmazza):
+oc apply -f openshift/openshift-all.yaml
+
+# 2. Vagy csak az HPA-t:
+oc apply -f openshift/hpa.yaml
+
+# 3. Ellenőrizd az állapotot:
+oc get hpa
+oc describe hpa frontend-hpa
+oc describe hpa backend-hpa
+```
+
+### Skálázás megfigyelése
+
+```bash
+# HPA állapot folyamatos figyelése:
+watch oc get hpa
+
+# Podok számának változása:
+watch oc get pods -l app=frontend
+watch oc get pods -l app=backend
+
+# HPA események:
+oc get events --field-selector reason=SuccessfulRescale
+```
+
+### Terheléseszt konfigurációja (Locust)
+
+A `locust/locustfile.py` tartalmazza a terheléseszt konfigurációt, amely lefedi az összes API funkciót:
+
+| Feladat | Végpont | Relatív arány | Leírás |
+|---------|---------|:-------------:|--------|
+| Health check | `GET /api/health` | 1× | Állapot-ellenőrzés |
+| List by date | `GET /api/photos?sort=date` | 4× | Fotólista dátum szerint |
+| View photo | `GET /api/photos/<id>` + `/image` | 3× | Fotó megtekintése |
+| Upload photo | `POST /api/photos` | 3× | Fotó feltöltése |
+| List by name | `GET /api/photos?sort=name` | 2× | Fotólista név szerint |
+| Delete photo | `DELETE /api/photos/<id>` | 1× | Fotó törlése |
+
+**Terheléseszt futtatása OpenShift-ből (felhőből):**
+
+```bash
+# 1. Deployold a Locustot:
+oc apply -f locust/locust-openshift.yaml
+
+# 2. Szerezd be a web UI URL-t:
+oc get route locust
+# Web UI: https://locust-<namespace>.apps.<cluster>
+
+# 3. Konfiguráció a web UI-ban:
+#    - Number of users: 50
+#    - Spawn rate: 5 users/s
+#    - Host: http://backend:5001
+
+# 4. Kattints "Start swarming" és figyeld a skálázást
+```
+
+**Terheléseszt futtatás helyi gépen:**
+
+```bash
+pip install locust
+cd locust
+locust --host http://backend:5001
+# Böngészőben: http://localhost:8089
+```
+
+### Automatikus skálázás igazolása (Proof of Scaling)
+
+A skálázás igazolásához gyűjtsd össze a következő információkat:
+
+**1. Skálázás felfelé (terhelés alatt):**
+```bash
+# Előtte (1 replika):
+oc get hpa
+oc get pods -l app=frontend -o wide
+oc get pods -l app=backend -o wide
+
+# Utána (5 replika):
+oc get hpa
+oc get pods -l app=frontend -o wide
+oc get pods -l app=backend -o wide
+
+# Skálázási események:
+oc get events --field-selector reason=SuccessfulRescale
+```
+
+**2. Skálázás lefelé (terhelés után):**
+```bash
+# Miután a terhelés csökkent:
+oc get hpa
+oc get pods -l app=frontend -o wide
+oc get pods -l app=backend -o wide
+```
+
+**3. Teljesítmény metrikák:**
+- Átlagos válaszidő: < 2 másodperc
+- Hiba arány: < 1%
+- Max CPU használat: < 70%
+- Adatbázis kapcsolatok: stabil
+
+**4. Screenshots:**
+- HPA állapot a skálázás közben
+- Pod szám változás grafikon
+- Locust teszt eredmények
+- Erőforrás használat grafikon
+
+**Teljes tesztelési eljárás részletesen:** Lásd `openshift/task2-load-test-guide.md`
+
+**Igazolási sablon:** Lásd `openshift/task2-proof-template.md`
+
+---
+
 ## Megjegyzések
 
 - A feltöltött képek PersistentVolumeClaim (`uploads-pvc`, 5Gi) volume-on tárolódnak – pod újraindítás esetén megmaradnak.

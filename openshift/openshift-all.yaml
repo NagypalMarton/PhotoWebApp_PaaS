@@ -125,7 +125,7 @@ spec:
           command: ['sh', '-c', 'until nc -z mysql 3306; do echo waiting for mysql; sleep 2; done;']
       containers:
         - name: backend
-          image: CHANGE_ME_DOCKERHUB_USERNAME/photowebapp-backend:latest
+          image: nagypalmarton/photowebapp-backend:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 5001
@@ -189,7 +189,7 @@ spec:
           command: ['sh', '-c', 'until nc -z backend 5001; do echo waiting for backend; sleep 2; done;']
       containers:
         - name: frontend
-          image: CHANGE_ME_DOCKERHUB_USERNAME/photowebapp-frontend:latest
+          image: nagypalmarton/photowebapp-frontend:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 5000

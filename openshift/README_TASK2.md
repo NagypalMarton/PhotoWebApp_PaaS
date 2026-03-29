@@ -14,7 +14,7 @@ This directory contains the configuration and documentation for Task 2 - automat
 # Set project
 oc project photowebapp
 
-# Apply all configurations
+# Apply all configurations (including HPA)
 oc apply -f openshift/openshift-all.yaml
 
 # Apply Locust for load testing
@@ -36,7 +36,7 @@ echo "Locust UI: https://$LOCUST_URL"
 | File | Description |
 |------|-------------|
 | `openshift-all.yaml` | Complete OpenShift configuration with HPA |
-| `task2-scaling-config.md` | Scaling configuration details |
+| `task2-scaling-config.md` | Detailed scaling configuration |
 | `task2-load-test-guide.md` | Step-by-step load testing guide |
 | `task2-proof-template.md` | Template for proof of scaling |
 | `task2-test-script.sh` | Automated test script |
@@ -47,15 +47,15 @@ echo "Locust UI: https://$LOCUST_URL"
 - **Min Replicas:** 1
 - **Max Replicas:** 5
 - **Target CPU:** 50%
-- **Scale-up:** +2 pods/30s
-- **Scale-down:** +1 pod/60s
+- **Scale-up:** +2 pods/30s (no stabilization)
+- **Scale-down:** +1 pod/60s (60s stabilization)
 
 ### Backend HPA
 - **Min Replicas:** 1
 - **Max Replicas:** 5
 - **Target CPU:** 50%
-- **Scale-up:** +2 pods/30s
-- **Scale-down:** +1 pod/60s
+- **Scale-up:** +2 pods/30s (no stabilization)
+- **Scale-down:** +1 pod/60s (60s stabilization)
 
 ## Load Test Parameters
 
