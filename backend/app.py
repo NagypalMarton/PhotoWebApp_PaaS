@@ -10,16 +10,12 @@ from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
+from config import Config
+from constants import ERROR_MESSAGES, SUCCESS_MESSAGES, FLASH_CATEGORIES
+
 
 app = Flask(__name__)
-app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
-    "DATABASE_URL", "mysql+pymysql://photouser:photopass@localhost:3306/photowebapp"
-)
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-backend-secret")
-app.config["UPLOAD_FOLDER"] = os.getenv("UPLOAD_FOLDER", "/data/uploads")
-
-ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
+app.config.from_object(Config)
 
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
@@ -61,17 +57,32 @@ def get_user_id_from_token(token: str):
         return None
 
 
+def get_photo_or_404(photo_id: int):
+    """Get photo by ID or return 404 response."""
+    photo = Photo.query.get(photo_id)
+    if not photo:
+        return None, jsonify({"error": ERROR_MESSAGES["photo_not_found"]}), 404
+    return photo, None, None
+
+
+def check_photo_owner(photo, user_id: int):
+    """Check if user owns the photo or return 403 response."""
+    if photo.owner_id != user_id:
+        return jsonify({"error": ERROR_MESSAGES["photo_not_owned"]}), 403
+    return None
+
+
 def auth_required(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         auth_header = request.headers.get("Authorization", "")
         if not auth_header.startswith("Bearer "):
-            return jsonify({"error": "Authentication required"}), 401
+            return jsonify({"error": ERROR_MESSAGES["auth_required"]}), 401
 
         token = auth_header.split(" ", 1)[1].strip()
         user_id = get_user_id_from_token(token)
         if not user_id:
-            return jsonify({"error": "Invalid or expired token"}), 401
+            return jsonify({"error": ERROR_MESSAGES["invalid_token"]}), 401
 
         request.user_id = user_id
         return func(*args, **kwargs)
@@ -90,20 +101,20 @@ def register():
     username = (data.get("username") or "").strip()
     password = data.get("password") or ""
 
-    if len(username) < 3 or len(username) > 80:
-        return jsonify({"error": "Username must be between 3 and 80 characters"}), 400
-    if len(password) < 6:
-        return jsonify({"error": "Password must be at least 6 characters"}), 400
+    if len(username) < MIN_USERNAME_LENGTH or len(username) > MAX_USERNAME_LENGTH:
+        return jsonify({"error": ERROR_MESSAGES["username_invalid"]}), 400
+    if len(password) < MIN_PASSWORD_LENGTH:
+        return jsonify({"error": ERROR_MESSAGES["password_invalid"]}), 400
 
     existing = User.query.filter_by(username=username).first()
     if existing:
-        return jsonify({"error": "Username already exists"}), 409
+        return jsonify({"error": ERROR_MESSAGES["username_exists"]}), 409
 
     user = User(username=username, password_hash=generate_password_hash(password))
     db.session.add(user)
     db.session.commit()
 
-    return jsonify({"message": "Registration successful"}), 201
+    return jsonify({"message": SUCCESS_MESSAGES["registration"]}), 201
 
 
 @app.route("/api/login", methods=["POST"])
@@ -114,7 +125,7 @@ def login():
 
     user = User.query.filter_by(username=username).first()
     if not user or not check_password_hash(user.password_hash, password):
-        return jsonify({"error": "Invalid username or password"}), 401
+        return jsonify({"error": ERROR_MESSAGES["invalid_credentials"]}), 401
 
     token = token_for_user(user.id)
     return jsonify({"token": token, "username": user.username})
@@ -125,16 +136,10 @@ def list_photos():
     sort = request.args.get("sort", "date")
     order = request.args.get("order", "desc")
     
-    if sort == "name":
-        if order == "asc":
-            query = Photo.query.order_by(Photo.name.asc())
-        else:
-            query = Photo.query.order_by(Photo.name.desc())
-    else:
-        if order == "asc":
-            query = Photo.query.order_by(Photo.uploaded_at.asc())
-        else:
-            query = Photo.query.order_by(Photo.uploaded_at.desc())
+    # Use getattr for dynamic column selection - cleaner than nested if-else
+    sort_column = Photo.name if sort == "name" else Photo.uploaded_at
+    order_func = getattr(sort_column, order)
+    query = Photo.query.order_by(order_func())
 
     photos = [
         {
@@ -153,12 +158,12 @@ def upload_photo():
     name = (request.form.get("name") or "").strip()
     file = request.files.get("photo")
 
-    if not name or len(name) > 40:
-        return jsonify({"error": "Photo name is required and max 40 characters"}), 400
+    if not name or len(name) > MAX_PHOTO_NAME_LENGTH:
+        return jsonify({"error": ERROR_MESSAGES["photo_name_invalid"]}), 400
     if not file or file.filename == "":
-        return jsonify({"error": "Photo file is required"}), 400
+        return jsonify({"error": ERROR_MESSAGES["photo_file_required"]}), 400
     if not is_allowed_file(file.filename):
-        return jsonify({"error": "Unsupported file format"}), 400
+        return jsonify({"error": ERROR_MESSAGES["photo_format_unsupported"]}), 400
 
     safe_name = secure_filename(file.filename)
     unique_filename = f"{uuid4().hex}_{safe_name}"
@@ -169,18 +174,20 @@ def upload_photo():
     db.session.add(photo)
     db.session.commit()
 
-    return jsonify({"message": "Photo uploaded", "id": photo.id}), 201
+    return jsonify({"message": SUCCESS_MESSAGES["upload"], "id": photo.id}), 201
 
 
 @app.route("/api/photos/<int:photo_id>", methods=["DELETE"])
 @auth_required
 def delete_photo(photo_id: int):
-    photo = Photo.query.get(photo_id)
-    if not photo:
-        return jsonify({"error": "Photo not found"}), 404
-    if photo.owner_id != request.user_id:
-        return jsonify({"error": "You can only delete your own photos"}), 403
-
+    photo, error_response, status_code = get_photo_or_404(photo_id)
+    if error_response:
+        return error_response, status_code
+    
+    owner_error = check_photo_owner(photo, request.user_id)
+    if owner_error:
+        return owner_error
+    
     file_path = os.path.join(app.config["UPLOAD_FOLDER"], photo.filename)
     if os.path.exists(file_path):
         os.remove(file_path)
@@ -188,14 +195,14 @@ def delete_photo(photo_id: int):
     db.session.delete(photo)
     db.session.commit()
 
-    return jsonify({"message": "Photo deleted"})
+    return jsonify({"message": SUCCESS_MESSAGES["delete"]})
 
 
 @app.route("/api/photos/<int:photo_id>", methods=["GET"])
 def photo_detail(photo_id: int):
-    photo = Photo.query.get(photo_id)
-    if not photo:
-        return jsonify({"error": "Photo not found"}), 404
+    photo, error_response, status_code = get_photo_or_404(photo_id)
+    if error_response:
+        return error_response, status_code
 
     return jsonify(
         {

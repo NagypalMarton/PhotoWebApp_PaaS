@@ -3,6 +3,8 @@ import os
 import requests
 from flask import Flask, Response, flash, redirect, render_template, request, session, url_for
 
+from constants import ERROR_MESSAGES, SUCCESS_MESSAGES, FLASH_CATEGORIES
+
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "frontend-dev-secret")
@@ -20,6 +22,23 @@ def backend(path: str) -> str:
     return f"{BACKEND_URL}{path}"
 
 
+def api_request(method, endpoint, **kwargs):
+    """Helper function for API requests with consistent error handling."""
+    url = backend(endpoint)
+    headers = kwargs.pop("headers", {})
+    headers.update(api_headers())
+    kwargs["headers"] = headers
+    kwargs.setdefault("timeout", 10)
+    
+    try:
+        response = requests.request(method, url, **kwargs)
+        response.raise_for_status()
+        return response.json(), None
+    except requests.RequestException as e:
+        flash(ERROR_MESSAGES["backend_unavailable"], FLASH_CATEGORIES["error"])
+        return None, str(e)
+
+
 @app.route("/")
 def index():
     sort = request.args.get("sort", "date")
@@ -29,7 +48,7 @@ def index():
         photos = response.json().get("photos", []) if response.ok else []
     except requests.RequestException:
         photos = []
-        flash("A backend jelenleg nem elérhető.", "danger")
+        flash(ERROR_MESSAGES["backend_unavailable"], FLASH_CATEGORIES["error"])
 
     return render_template(
         "index.html",
@@ -50,7 +69,7 @@ def photo_view(photo_id: int):
             return redirect(url_for("index"))
         photo = response.json()
     except requests.RequestException:
-        flash("A backend jelenleg nem elérhető.", "danger")
+        flash(ERROR_MESSAGES["backend_unavailable"], FLASH_CATEGORIES["error"])
         return redirect(url_for("index"))
 
     image_url = url_for("photo_image_proxy", photo_id=photo_id)
@@ -62,7 +81,7 @@ def photo_image_proxy(photo_id: int):
     try:
         response = requests.get(backend(f"/api/photos/{photo_id}/image"), timeout=20)
     except requests.RequestException:
-        flash("A backend jelenleg nem elérhető.", "danger")
+        flash(ERROR_MESSAGES["backend_unavailable"], FLASH_CATEGORIES["error"])
         return redirect(url_for("photo_view", photo_id=photo_id))
 
     if not response.ok:
@@ -92,11 +111,11 @@ def register():
                 timeout=10,
             )
             if response.status_code == 201:
-                flash("Sikeres regisztráció. Most jelentkezz be.", "success")
+                flash(SUCCESS_MESSAGES["registration"], FLASH_CATEGORIES["success"])
                 return redirect(url_for("login"))
-            flash(response.json().get("error", "Regisztráció sikertelen."), "danger")
+            flash(response.json().get("error", "Regisztráció sikertelen."), FLASH_CATEGORIES["error"])
         except requests.RequestException:
-            flash("A backend jelenleg nem elérhető.", "danger")
+            flash(ERROR_MESSAGES["backend_unavailable"], FLASH_CATEGORIES["error"])
 
     return render_template("auth.html", mode="register")
 
@@ -117,11 +136,11 @@ def login():
                 body = response.json()
                 session["token"] = body["token"]
                 session["username"] = body["username"]
-                flash("Sikeres bejelentkezés.", "success")
+                flash(SUCCESS_MESSAGES["login"], FLASH_CATEGORIES["success"])
                 return redirect(url_for("index"))
-            flash(response.json().get("error", "Bejelentkezés sikertelen."), "danger")
+            flash(response.json().get("error", "Bejelentkezés sikertelen."), FLASH_CATEGORIES["error"])
         except requests.RequestException:
-            flash("A backend jelenleg nem elérhető.", "danger")
+            flash(ERROR_MESSAGES["backend_unavailable"], FLASH_CATEGORIES["error"])
 
     return render_template("auth.html", mode="login")
 
@@ -129,25 +148,25 @@ def login():
 @app.route("/logout")
 def logout():
     session.clear()
-    flash("Sikeres kijelentkezés.", "info")
+    flash(SUCCESS_MESSAGES["logout"], FLASH_CATEGORIES["info"])
     return redirect(url_for("index"))
 
 
 @app.route("/upload", methods=["POST"])
 def upload():
     if "token" not in session:
-        flash("A feltöltéshez bejelentkezés szükséges.", "warning")
+        flash("A feltöltéshez bejelentkezés szükséges.", FLASH_CATEGORIES["warning"])
         return redirect(url_for("login"))
 
     name = request.form.get("name", "").strip()
     photo = request.files.get("photo")
 
-    if not name or len(name) > 40:
-        flash("A kép neve kötelező és max 40 karakter lehet.", "danger")
+    if not name or len(name) > MAX_PHOTO_NAME_LENGTH:
+        flash(f"A kép neve kötelező és max {MAX_PHOTO_NAME_LENGTH} karakter lehet.", FLASH_CATEGORIES["error"])
         return redirect(url_for("index"))
 
     if not photo:
-        flash("Válassz ki egy képet feltöltésre.", "danger")
+        flash("Válassz ki egy képet feltöltésre.", FLASH_CATEGORIES["error"])
         return redirect(url_for("index"))
 
     try:
@@ -159,11 +178,11 @@ def upload():
             timeout=20,
         )
         if response.status_code == 201:
-            flash("Sikeres feltöltés.", "success")
+            flash(SUCCESS_MESSAGES["upload"], FLASH_CATEGORIES["success"])
         else:
-            flash(response.json().get("error", "Feltöltés sikertelen."), "danger")
+            flash(response.json().get("error", "Feltöltés sikertelen."), FLASH_CATEGORIES["error"])
     except requests.RequestException:
-        flash("A backend jelenleg nem elérhető.", "danger")
+        flash(ERROR_MESSAGES["backend_unavailable"], FLASH_CATEGORIES["error"])
 
     return redirect(url_for("index"))
 
@@ -171,7 +190,7 @@ def upload():
 @app.route("/delete/<int:photo_id>", methods=["POST"])
 def delete(photo_id: int):
     if "token" not in session:
-        flash("A törléshez bejelentkezés szükséges.", "warning")
+        flash("A törléshez bejelentkezés szükséges.", FLASH_CATEGORIES["warning"])
         return redirect(url_for("login"))
 
     try:
@@ -179,11 +198,11 @@ def delete(photo_id: int):
             backend(f"/api/photos/{photo_id}"), headers=api_headers(), timeout=10
         )
         if response.ok:
-            flash("Kép törölve.", "success")
+            flash(SUCCESS_MESSAGES["delete"], FLASH_CATEGORIES["success"])
         else:
-            flash(response.json().get("error", "Törlés sikertelen."), "danger")
+            flash(response.json().get("error", "Törlés sikertelen."), FLASH_CATEGORIES["error"])
     except requests.RequestException:
-        flash("A backend jelenleg nem elérhető.", "danger")
+        flash(ERROR_MESSAGES["backend_unavailable"], FLASH_CATEGORIES["error"])
 
     return redirect(url_for("index"))
 
