@@ -6,3 +6,11 @@ __pycache__/
 venv/
 .git/
 .gitignore
+
+# Exclude locust directory (load testing, not needed for frontend build)
+locust/
+locustfile.py
+
+# Exclude openshift and k8s manifests
+openshift/
+k8s/
