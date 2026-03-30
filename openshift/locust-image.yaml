@@ -1,0 +1,53 @@
+# Locust Build Configuration for OpenShift
+# ==============================================================================
+# This file builds a Locust image from the local locustfile.py
+# and pushes it to the OpenShift Image Registry.
+# ==============================================================================
+
+---
+# BuildConfig for Locust image
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: locust-build
+  labels:
+    app: locust
+spec:
+  source:
+    type: Git
+    git:
+      uri: "https://github.com/nagypalmarton/PhotoWebApp_PaaS.git"
+      ref: "main"
+    contextDir: "locust"
+  strategy:
+    type: Source
+    sourceStrategy:
+      from:
+        kind: ImageStreamTag
+        namespace: openshift
+        name: python:3.9
+  output:
+    to:
+      kind: ImageStreamTag
+      name: locust:latest
+  triggers:
+    - type: Generic
+      generic:
+        secret: 00000000-0000-0000-0000-000000000000
+    - type: GitHub
+      github:
+        secret: 00000000-0000-0000-0000-000000000000
+    - type: ConfigChange
+    - type: ImageChange
+
+---
+# ImageStream for Locust
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: locust
+  labels:
+    app: locust
+spec:
+  lookupPolicy:
+    local: true

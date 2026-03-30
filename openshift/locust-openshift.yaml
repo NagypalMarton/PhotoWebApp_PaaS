@@ -237,7 +237,7 @@ spec:
         runAsUser: 1000
       containers:
         - name: locust-master
-          image: python:3.12-slim
+          image: registry.access.redhat.com/ubi9/python-39
           ports:
             - containerPort: 8089
             - containerPort: 5557
@@ -287,7 +287,7 @@ spec:
         runAsUser: 1000
       containers:
         - name: locust-worker
-          image: python:3.12-slim
+          image: registry.access.redhat.com/ubi9/python-39
           command: ["locust", "-f", "locustfile.py", "--worker", "--master-host", "locust-master"]
           resources:
             requests:

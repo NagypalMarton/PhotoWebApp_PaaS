@@ -1,4 +1,9 @@
-FROM python:3.12-slim
+# Locust Dockerfile for OpenShift
+# ==============================================================================
+# This Dockerfile builds a Locust image for load testing.
+# ==============================================================================
+
+FROM registry.access.redhat.com/ubi9/python-39
 
 WORKDIR /app
 
