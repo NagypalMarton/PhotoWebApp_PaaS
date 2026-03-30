@@ -1,20 +1,34 @@
 """Configuration management for the backend application."""
 import os
-from config import Config as SharedConfig
 
 
-class Config(SharedConfig):
-    """Application configuration class - extends shared Config."""
+class Config:
+    """Application configuration class."""
     
     # Database
-    DATABASE_URL = os.getenv("DATABASE_URL", SharedConfig.DATABASE_URL)
+    DATABASE_URL = os.getenv(
+        "DATABASE_URL", "mysql+pymysql://photouser:photopass@localhost:3306/photowebapp"
+    )
     
     # Security
-    SECRET_KEY = os.getenv("SECRET_KEY", SharedConfig.SECRET_KEY)
+    SECRET_KEY = os.getenv("SECRET_KEY", "dev-backend-secret")
     
     # File upload
-    UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", SharedConfig.UPLOAD_FOLDER)
-    MAX_PHOTO_SIZE = int(os.getenv("MAX_PHOTO_SIZE", SharedConfig.MAX_PHOTO_SIZE))
+    UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "/data/uploads")
+    MAX_PHOTO_SIZE = int(os.getenv("MAX_PHOTO_SIZE", "10485760"))  # 10MB default
+    
+    # Validation constants
+    MAX_PHOTO_NAME_LENGTH = 40
+    MAX_USERNAME_LENGTH = 80
+    MIN_USERNAME_LENGTH = 3
+    MIN_PASSWORD_LENGTH = 6
+    
+    # Allowed file extensions
+    ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
+    
+    # API settings
+    API_TIMEOUT = 10  # seconds
+    IMAGE_PROXY_TIMEOUT = 20  # seconds
     
     # SQLAlchemy
     SQLALCHEMY_DATABASE_URI = DATABASE_URL
