@@ -1,14 +1,13 @@
 """Constants for the backend application."""
-from config import Config
 
 # Validation constants
-MAX_PHOTO_NAME_LENGTH = Config.MAX_PHOTO_NAME_LENGTH
-MAX_USERNAME_LENGTH = Config.MAX_USERNAME_LENGTH
-MIN_USERNAME_LENGTH = Config.MIN_USERNAME_LENGTH
-MIN_PASSWORD_LENGTH = Config.MIN_PASSWORD_LENGTH
+MAX_PHOTO_NAME_LENGTH = 40
+MAX_USERNAME_LENGTH = 80
+MIN_USERNAME_LENGTH = 3
+MIN_PASSWORD_LENGTH = 6
 
 # Allowed file extensions
-ALLOWED_EXTENSIONS = Config.ALLOWED_EXTENSIONS
+ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
 
 # API endpoints
 API_PREFIX = "/api"
