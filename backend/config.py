@@ -1,19 +1,20 @@
 """Configuration management for the backend application."""
-from config import Config
+import os
+from config import Config as SharedConfig
 
 
-class Config:
+class Config(SharedConfig):
     """Application configuration class - extends shared Config."""
     
     # Database
-    DATABASE_URL = Config.DATABASE_URL
+    DATABASE_URL = os.getenv("DATABASE_URL", SharedConfig.DATABASE_URL)
     
     # Security
-    SECRET_KEY = Config.SECRET_KEY
+    SECRET_KEY = os.getenv("SECRET_KEY", SharedConfig.SECRET_KEY)
     
     # File upload
-    UPLOAD_FOLDER = Config.UPLOAD_FOLDER
-    MAX_PHOTO_SIZE = Config.MAX_PHOTO_SIZE
+    UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", SharedConfig.UPLOAD_FOLDER)
+    MAX_PHOTO_SIZE = int(os.getenv("MAX_PHOTO_SIZE", SharedConfig.MAX_PHOTO_SIZE))
     
     # SQLAlchemy
     SQLALCHEMY_DATABASE_URI = DATABASE_URL
