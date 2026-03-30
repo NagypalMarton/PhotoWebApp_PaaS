@@ -39,6 +39,12 @@ def api_request(method, endpoint, **kwargs):
         return None, str(e)
 
 
+def is_allowed_file(filename: str) -> bool:
+    """Check if file extension is allowed."""
+    allowed_extensions = {"png", "jpg", "jpeg", "gif", "webp"}
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in allowed_extensions
+
+
 @app.route("/")
 def index():
     sort = request.args.get("sort", "date")
@@ -98,6 +104,78 @@ def photo_image_proxy(photo_id: int):
     )
 
 
+@app.route("/upload", methods=["POST"])
+def upload():
+    if not session.get("token"):
+        flash(ERROR_MESSAGES["auth_required"], FLASH_CATEGORIES["error"])
+        return redirect(url_for("index"))
+
+    name = request.form.get("name", "").strip()
+    file = request.files.get("photo")
+
+    if not name:
+        flash(ERROR_MESSAGES["photo_name_required"], FLASH_CATEGORIES["error"])
+        return redirect(url_for("index"))
+    if not file or file.filename == "":
+        flash(ERROR_MESSAGES["photo_file_required"], FLASH_CATEGORIES["error"])
+        return redirect(url_for("index"))
+    if not is_allowed_file(file.filename):
+        flash(ERROR_MESSAGES["photo_format_unsupported"], FLASH_CATEGORIES["error"])
+        return redirect(url_for("index"))
+
+    # Forward to backend API
+    token = session.get("token")
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    try:
+        response = requests.post(
+            backend("/api/photos"),
+            headers=headers,
+            data={"name": name},
+            files={"photo": (file.filename, file.stream, file.mimetype)},
+            timeout=20
+        )
+        
+        if response.ok:
+            flash(SUCCESS_MESSAGES["upload"], FLASH_CATEGORIES["success"])
+        else:
+            error = response.json().get("error", "Hiba történt a feltöltés közben.")
+            flash(error, FLASH_CATEGORIES["error"])
+    except requests.RequestException:
+        flash(ERROR_MESSAGES["backend_unavailable"], FLASH_CATEGORIES["error"])
+
+    return redirect(url_for("index"))
+
+
+@app.route("/delete/<int:photo_id>", methods=["POST"])
+def delete(photo_id: int):
+    if not session.get("token"):
+        flash(ERROR_MESSAGES["auth_required"], FLASH_CATEGORIES["error"])
+        return redirect(url_for("index"))
+
+    token = session.get("token")
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    try:
+        response = requests.delete(backend(f"/api/photos/{photo_id}"), headers=headers, timeout=10)
+        
+        if response.ok:
+            flash(SUCCESS_MESSAGES["delete"], FLASH_CATEGORIES["success"])
+        else:
+            error = response.json().get("error", "Hiba történt a törlés közben.")
+            flash(error, FLASH_CATEGORIES["error"])
+    except requests.RequestException:
+        flash(ERROR_MESSAGES["backend_unavailable"], FLASH_CATEGORIES["error"])
+
+    return redirect(url_for("index"))
+
+
+def is_allowed_file(filename: str) -> bool:
+    """Check if file extension is allowed."""
+    allowed_extensions = {"png", "jpg", "jpeg", "gif", "webp"}
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in allowed_extensions
+
+
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
@@ -150,62 +228,3 @@ def logout():
     session.clear()
     flash(SUCCESS_MESSAGES["logout"], FLASH_CATEGORIES["info"])
     return redirect(url_for("index"))
-
-
-@app.route("/upload", methods=["POST"])
-def upload():
-    if "token" not in session:
-        flash("A feltöltéshez bejelentkezés szükséges.", FLASH_CATEGORIES["warning"])
-        return redirect(url_for("login"))
-
-    name = request.form.get("name", "").strip()
-    photo = request.files.get("photo")
-
-    if not name or len(name) > MAX_PHOTO_NAME_LENGTH:
-        flash(f"A kép neve kötelező és max {MAX_PHOTO_NAME_LENGTH} karakter lehet.", FLASH_CATEGORIES["error"])
-        return redirect(url_for("index"))
-
-    if not photo:
-        flash("Válassz ki egy képet feltöltésre.", FLASH_CATEGORIES["error"])
-        return redirect(url_for("index"))
-
-    try:
-        response = requests.post(
-            backend("/api/photos"),
-            headers=api_headers(),
-            data={"name": name},
-            files={"photo": (photo.filename, photo.stream, photo.mimetype)},
-            timeout=20,
-        )
-        if response.status_code == 201:
-            flash(SUCCESS_MESSAGES["upload"], FLASH_CATEGORIES["success"])
-        else:
-            flash(response.json().get("error", "Feltöltés sikertelen."), FLASH_CATEGORIES["error"])
-    except requests.RequestException:
-        flash(ERROR_MESSAGES["backend_unavailable"], FLASH_CATEGORIES["error"])
-
-    return redirect(url_for("index"))
-
-
-@app.route("/delete/<int:photo_id>", methods=["POST"])
-def delete(photo_id: int):
-    if "token" not in session:
-        flash("A törléshez bejelentkezés szükséges.", FLASH_CATEGORIES["warning"])
-        return redirect(url_for("login"))
-
-    try:
-        response = requests.delete(
-            backend(f"/api/photos/{photo_id}"), headers=api_headers(), timeout=10
-        )
-        if response.ok:
-            flash(SUCCESS_MESSAGES["delete"], FLASH_CATEGORIES["success"])
-        else:
-            flash(response.json().get("error", "Törlés sikertelen."), FLASH_CATEGORIES["error"])
-    except requests.RequestException:
-        flash(ERROR_MESSAGES["backend_unavailable"], FLASH_CATEGORIES["error"])
-
-    return redirect(url_for("index"))
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)

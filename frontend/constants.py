@@ -16,6 +16,10 @@ ERROR_MESSAGES = {
     "photo_not_found": "A kép nem található.",
     "upload_failed": "Feltöltés sikertelen.",
     "delete_failed": "Törlés sikertelen.",
+    "photo_name_required": "A kép neve kötelező.",
+    "photo_file_required": "Válassz ki egy képet feltöltésre.",
+    "photo_format_unsupported": "A kiválasztott fájl formátuma nem támogatott.",
+    "photo_name_invalid": f"A kép neve max 40 karakter lehet.",
 }
 
 # Success messages
