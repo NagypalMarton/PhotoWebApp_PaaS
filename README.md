@@ -407,3 +407,37 @@ oc get pods -l app=backend -o wide
 - A MySQL image a hivatalos Red Hat registryből származik: `registry.access.redhat.com/rhscl/mysql-80-rhel7`.
 - A `mysql/mysql.yaml`-ban lévő Secret-ben minden `CHANGE_THIS_*` értéket éles jelszóra kell cserélni az alkalmazás élesítése előtt.
 - A `k8s/photowebapp.yaml` fejlesztési/tesztelési célra szolgál lokális Kubernetes clusterhez (pl. Minikube, Kind).
+
+---
+
+## Task 2: Részletes dokumentáció
+
+A Task 2 (automatikus skálázás és terheléseszt) részletes dokumentációja a `openshift/` könyvtárban található:
+
+| Fájl | Leírás |
+|------|--------|
+| `openshift/TASK2_SCALING_CONFIG.md` | Részletes HPA konfiguráció és beállítások |
+| `openshift/TASK2_LOAD_TEST_REPORT.md` | Teljes terheléseszt jelentés és eredmények |
+| `openshift/TASK2_LESSONS_LEARNED.md` | Tanult leckék és tapasztalatok |
+| `openshift/README_TASK2.md` | Gyors kezdési útmutató |
+| `openshift/task2-load-test-guide.md` | Step-by-step load testing útmutató |
+| `openshift/task2-proof-template.md` | Proof of scaling sablon |
+| `openshift/task2-test-script.sh` | Automatizált teszt script |
+
+### Gyors indítás
+
+```bash
+# 1. Alkalmazd az összes konfigurációt
+oc apply -f openshift/openshift-all.yaml
+
+# 2. Deployold a Locustot
+oc apply -f locust/locust-openshift.yaml
+
+# 3. Nézd meg a Locust UI-t
+oc get route locust
+
+# 4. Figyeld a skálázást
+watch oc get hpa
+watch oc get pods -l app=frontend
+watch oc get pods -l app=backend
+```

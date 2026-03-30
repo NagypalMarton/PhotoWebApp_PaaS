@@ -48,11 +48,11 @@ spec:
             - containerPort: 3306
           resources:
             requests:
-              cpu: 200m
-              memory: 512Mi
+              cpu: 50m       # Low request to trigger scaling with small load
+              memory: 64Mi   # Low memory request
             limits:
-              cpu: 500m
-              memory: 1Gi
+              cpu: 200m
+              memory: 256Mi
           env:
             - name: MYSQL_DATABASE
               valueFrom:
@@ -131,11 +131,11 @@ spec:
             - containerPort: 5001
           resources:
             requests:
-              cpu: 100m
-              memory: 128Mi
+              cpu: 50m       # Low request to trigger scaling with small load
+              memory: 64Mi   # Low memory request
             limits:
-              cpu: 500m
-              memory: 512Mi
+              cpu: 200m
+              memory: 256Mi
           env:
             - name: DATABASE_URL
               valueFrom:
@@ -195,11 +195,11 @@ spec:
             - containerPort: 5000
           resources:
             requests:
-              cpu: 100m
-              memory: 128Mi
+              cpu: 50m       # Low request to trigger scaling with small load
+              memory: 64Mi   # Low memory request
             limits:
-              cpu: 500m
-              memory: 512Mi
+              cpu: 200m
+              memory: 256Mi
           env:
             - name: BACKEND_URL
               value: http://backend:5001
@@ -239,7 +239,7 @@ spec:
 # ==============================================================================
 # HPA - Horizontal Pod Autoscaler (Task 2 - Automatic Scaling)
 # ==============================================================================
-# Frontend HPA - scales 1-5 replicas based on CPU utilization (target: 50%)
+# Frontend HPA - scales 1-5 replicas based on CPU utilization (target: 30%)
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -257,7 +257,7 @@ spec:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 50
+          averageUtilization: 30  # Lower target to trigger scaling with small load
   behavior:
     scaleUp:
       stabilizationWindowSeconds: 0
@@ -272,7 +272,7 @@ spec:
           value: 1
           periodSeconds: 60
 ---
-# Backend HPA - scales 1-5 replicas based on CPU utilization (target: 50%)
+# Backend HPA - scales 1-5 replicas based on CPU utilization (target: 30%)
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -290,7 +290,7 @@ spec:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 50
+          averageUtilization: 30  # Lower target to trigger scaling with small load
   behavior:
     scaleUp:
       stabilizationWindowSeconds: 0
