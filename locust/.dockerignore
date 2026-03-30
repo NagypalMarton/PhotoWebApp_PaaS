@@ -1,0 +1,18 @@
+# Exclude unnecessary files from locust build
+.git/
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Exclude other test/load directories
+locust/
+openshift/
+k8s/
+uploads/
+
+# Exclude documentation
+*.md
+LICENSE
