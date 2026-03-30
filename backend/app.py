@@ -11,8 +11,11 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
 from config import Config
-from constants import ERROR_MESSAGES, SUCCESS_MESSAGES, FLASH_CATEGORIES, MIN_USERNAME_LENGTH, MAX_USERNAME_LENGTH, MIN_PASSWORD_LENGTH
-
+from constants import (
+    ERROR_MESSAGES, SUCCESS_MESSAGES, FLASH_CATEGORIES,
+    MIN_USERNAME_LENGTH, MAX_USERNAME_LENGTH, MIN_PASSWORD_LENGTH,
+    MAX_PHOTO_NAME_LENGTH
+)
 app = Flask(__name__)
 app.config.from_object(Config)
 
