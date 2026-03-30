@@ -1,0 +1,38 @@
+# Ignore locust directory
+locust/
+locustfile.py
+
+# Ignore OpenShift manifests
+openshift/*.yaml
+openshift/*.md
+
+# Ignore Kubernetes manifests
+k8s/*.yaml
+
+# Ignore documentation
+*.md
+LICENSE
+
+# Ignore IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ignore cache directories
+__pycache__/
+*.pyc
+*.pyo
+.env
+.venv/
+venv/
+
+# Ignore test files
+*.test.py
+*_test.py
+tests/
+test_*.py
+
+# Ignore other directories
+uploads/
+logs/
