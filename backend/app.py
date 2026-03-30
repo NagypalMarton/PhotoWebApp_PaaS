@@ -14,7 +14,7 @@ from config import Config
 from constants import (
     ERROR_MESSAGES, SUCCESS_MESSAGES, FLASH_CATEGORIES,
     MIN_USERNAME_LENGTH, MAX_USERNAME_LENGTH, MIN_PASSWORD_LENGTH,
-    MAX_PHOTO_NAME_LENGTH
+    MAX_PHOTO_NAME_LENGTH, ALLOWED_EXTENSIONS
 )
 app = Flask(__name__)
 app.config.from_object(Config)
