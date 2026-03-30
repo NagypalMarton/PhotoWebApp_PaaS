@@ -33,6 +33,7 @@ spec:
       containers:
         - name: locust
           image: photowebapp-locust:latest
+          imagePullPolicy: Never
           ports:
             - containerPort: 8089
               name: web-ui
