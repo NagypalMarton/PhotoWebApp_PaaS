@@ -237,7 +237,8 @@ spec:
         runAsUser: 1000
       containers:
         - name: locust-master
-          image: registry.access.redhat.com/ubi9/python-39
+          image: image-registry.openshift-image-registry.svc:5000/nagypalmarton-dev/locust:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8089
             - containerPort: 5557
@@ -287,7 +288,8 @@ spec:
         runAsUser: 1000
       containers:
         - name: locust-worker
-          image: registry.access.redhat.com/ubi9/python-39
+          image: image-registry.openshift-image-registry.svc:5000/nagypalmarton-dev/locust:latest
+          imagePullPolicy: Always
           command: ["locust", "-f", "locustfile.py", "--worker", "--master-host", "locust-master"]
           resources:
             requests:

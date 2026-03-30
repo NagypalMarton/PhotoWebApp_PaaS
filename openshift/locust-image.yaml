@@ -5,7 +5,7 @@
 # ==============================================================================
 
 ---
-# BuildConfig for Locust image
+# BuildConfig for Locust image (using Docker strategy)
 apiVersion: build.openshift.io/v1
 kind: BuildConfig
 metadata:
@@ -16,12 +16,12 @@ spec:
   source:
     type: Git
     git:
-      uri: "https://github.com/nagypalmarton/PhotoWebApp_PaaS.git"
+      uri: "https://github.com/NagypalMarton/PhotoWebApp_PaaS.git"
       ref: "main"
     contextDir: "locust"
   strategy:
-    type: Source
-    sourceStrategy:
+    type: Docker
+    dockerStrategy:
       from:
         kind: ImageStreamTag
         namespace: openshift
