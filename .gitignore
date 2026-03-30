@@ -208,7 +208,3 @@ __marimo__/
 
 # Generated OpenShift manifests with real secrets
 openshift/openshift-all-generated.yaml
-
-# Locust load testing (not needed for main builds)
-locust/
-locustfile.py
