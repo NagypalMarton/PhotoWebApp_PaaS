@@ -1,5 +1,5 @@
 """Constants for the frontend application."""
-from config import Config
+from config import MAX_PHOTO_NAME_LENGTH
 
 # Flash message categories
 FLASH_CATEGORIES = {
@@ -28,4 +28,4 @@ SUCCESS_MESSAGES = {
 }
 
 # Validation constants
-MAX_PHOTO_NAME_LENGTH = Config.MAX_PHOTO_NAME_LENGTH
+# MAX_PHOTO_NAME_LENGTH imported from config
