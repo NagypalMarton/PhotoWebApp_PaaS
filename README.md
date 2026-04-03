@@ -75,9 +75,9 @@ Böngésző
 - Felhasználókezelés: regisztráció, belépés, kilépés
 - Fényképfeltöltés (csak bejelentkezett felhasználónak)
 - Fényképtörlés (csak bejelentkezett felhasználónak, csak saját kép)
-- Minden képhez: név (max. 40 karakter) és feltöltési dátum (`ÉÉÉÉ-HH-NN ÓÓ:PP`)
+- Minden képhez: név (max. 40 karakter), feltöltési dátum (`ÉÉÉÉ-HH-NN ÓÓ:PP`) és feltöltő felhasználónév
 - Lista név vagy dátum szerinti rendezéssel
-- Listaelemre kattintva a kép részletes megjelenítése
+- Listaelemre kattintva a kép részletes megjelenítése (a feltöltő nevével)
 
 ---
 
@@ -105,7 +105,10 @@ PhotoWebApp_PaaS/
 │   ├── mysql.yaml                         # Secret, PVC, Deployment, Service
 │   └── Dockerfile                         # UBI9-alapú egyedi MySQL image
 ├── openshift/
-│   ├── photowebapp-build.yaml             # ImageStream-ek + BuildConfig-ok
+│   ├── openshift-all.yaml                 # Teljes stack: app + HPA + Locust
+│   ├── photowebapp-build.yaml             # Backend + frontend ImageStream-ek és BuildConfig-ok
+│   ├── locust-image.yaml                  # Locust ImageStream + BuildConfig
+│   ├── locust-openshift.yaml              # Locust runtime (master/worker, Service, Route)
 │   └── hpa.yaml                           # HorizontalPodAutoscaler – frontend és backend
 └── k8s/
     └── photowebapp.yaml                   # Lokális Kubernetes manifest (fejlesztéshez)
@@ -113,331 +116,115 @@ PhotoWebApp_PaaS/
 
 ---
 
-## Telepítés – OpenShift BuildConfig
+## Telepítés és üzemeltetés (UI alapú)
 
-Az OpenShift maga buildeli az image-eket közvetlenül a GitHub repóból, Docker Hub nem szükséges.
+Ez a szakasz egységesen OpenShift és GitHub UI lépésekkel írja le a teljes folyamatot. CLI parancsok helyett minden művelet elvégezhető a webes felületeken.
 
-### 1) Projekt létrehozás
+### 1) Projekt létrehozása
 
-1. OpenShift Console → **Administrator** nézet
-2. **Home → Projects → Create Project**: név legyen `photowebapp`
+1. OpenShift Console-ban válts **Administrator** nézetre.
+2. Nyisd meg: **Home → Projects → Create Project**.
+3. Projekt neve: `photowebapp`.
 
-### 2) Build infrastruktúra – ImageStream-ek és BuildConfig-ok
+### 2) Build infrastruktúra (backend + frontend)
 
-1. **+Add → Import YAML**
-2. Illeszd be az [`openshift/photowebapp-build.yaml`](openshift/photowebapp-build.yaml) teljes tartalmát
-3. Kattints **Create**
-4. **Builds → BuildConfigs** – a `photowebapp-backend-build` és `photowebapp-frontend-build` automatikusan elindulnak (ConfigChange trigger)
-5. Várd meg, amíg mindkét build sikeresen befejezik (**Builds → Builds** → zöld pipa)
+1. Nyisd meg: **+Add → Import YAML**.
+2. Másold be a [openshift/photowebapp-build.yaml](openshift/photowebapp-build.yaml) teljes tartalmát.
+3. Kattints **Create**.
+4. Nyisd meg: **Builds → BuildConfigs** és ellenőrizd, hogy a backend/frontend build elindult.
+5. Nyisd meg: **Builds → Builds** és várd meg a sikeres build státuszt.
 
-**Fontos:** A webhook secret kulcsa `WebHookSecretKey` (ez az OpenShift követelménye). Ha ezt a kulcsot módosítod, a GitHub webhook beállításoknál is ugyanezt az értéket kell használnod.
+### 3) Adatbázis és alkalmazás deploy
 
-### 3) MySQL deploy
+1. **+Add → Import YAML** alatt importáld a [mysql/mysql.yaml](mysql/mysql.yaml) tartalmát.
+2. A létrejött `photowebapp-secrets` Secretben cseréld a `CHANGE_THIS_*` értékeket.
+3. Importáld a [backend/backend.yaml](backend/backend.yaml) tartalmát.
+4. Importáld a [frontend/frontend.yaml](frontend/frontend.yaml) tartalmát.
+5. **Workloads → Pods** alatt ellenőrizd, hogy `mysql`, `backend`, `frontend` podok `Running` állapotban vannak.
+6. **Networking → Routes** alatt nyisd meg a `frontend` route-ot.
 
-1. **+Add → Import YAML**
-2. Illeszd be a [`mysql/mysql.yaml`](mysql/mysql.yaml) tartalmát
-3. **Fontos:** a `photowebapp-secrets` Secret-ben cseréld le az összes `CHANGE_THIS_*` értéket erős jelszavakra, és a `DATABASE_URL`-t tartsd szinkronban a `MYSQL_PASSWORD`-del
-4. Kattints **Create**
-5. **Workloads → Pods** – ellenőrizd, hogy a `mysql` pod **Running** állapotú
+### 4) HPA (automatikus skálázás) bekapcsolása
 
-### 4) Backend deploy
+1. Nyisd meg: **+Add → Import YAML**.
+2. Importáld a [openshift/hpa.yaml](openshift/hpa.yaml) tartalmát.
+3. Nyisd meg: **Observe → Horizontal Pod Autoscalers**.
+4. Ellenőrizd a két HPA objektumot:
+  - `frontend-hpa` (min 1, max 5)
+  - `backend-hpa` (min 1, max 5)
 
-1. **+Add → Import YAML**
-2. Illeszd be a [`backend/backend.yaml`](backend/backend.yaml) teljes tartalmát
-3. Kattints **Create**
-4. A Deployment az ImageStream trigger segítségével automatikusan frissül, amint a `photowebapp-backend:latest` kép elérhető
+### 5) Locust integráció külön appként (UI)
 
-### 5) Frontend deploy
+1. **+Add → Import YAML** alatt importáld a [openshift/locust-image.yaml](openshift/locust-image.yaml) tartalmát.
+2. **Builds → BuildConfigs** alatt nyisd meg a `locust-build` objektumot és ellenőrizd a build futását.
+3. **+Add → Import YAML** alatt importáld a [openshift/locust-openshift.yaml](openshift/locust-openshift.yaml) tartalmát.
+4. **Networking → Routes** alatt nyisd meg a `locust` route-ot.
+5. A Locust UI-ban állítsd be:
+  - Number of users: `30-60`
+  - Spawn rate: `5-10`
+  - Host: `http://frontend:80`
+6. Kattints **Start swarming**.
 
-1. **+Add → Import YAML**
-2. Illeszd be a [`frontend/frontend.yaml`](frontend/frontend.yaml) teljes tartalmát
-3. Kattints **Create**
-4. A Deployment az ImageStream trigger segítségével automatikusan frissül, amint a `photowebapp-frontend:latest` kép elérhető
-5. **Networking → Routes** – a `frontend` route-on érhető el az alkalmazás (HTTPS)
+### 6) GitHub webhook beállítás UI-ból
 
-### 6) Automatikus build GitHub push-ra (Webhook)
+#### OpenShift oldalon
 
-**Webhook URL-ek kinyerése az OpenShift UI-ból:**
+1. **Builds → BuildConfigs** alatt nyisd meg sorban:
+  - `photowebapp-backend-build`
+  - `photowebapp-frontend-build`
+  - `locust-build`
+2. Mindháromnál a **Configuration → Webhooks** résznél másold ki a GitHub webhook URL-t (**Copy URL with Secret**).
 
-1. **Administrator → Builds → BuildConfigs**
-2. Nyisd meg a `photowebapp-backend-build` BuildConfigot
-3. **Configuration** fül → **Webhooks** szakasz → **GitHub** sor → **Copy URL with Secret**
-4. Ismételd meg a `photowebapp-frontend-build` BuildConfiggal
+#### GitHub oldalon
 
-**Webhook hozzáadása GitHub-on:**
+1. Repo: **Settings → Webhooks → Add webhook**.
+2. `Payload URL`: az OpenShiftből másolt URL.
+3. `Content type`: `application/json`.
+4. Esemény: `Just the push event`.
+5. Mentés után ellenőrizd a zöld státuszt.
 
-1. GitHub repo → **Settings → Webhooks → Add webhook**
-2. **Payload URL**: a másolt OpenShift webhook URL
-3. **Content type**: `application/json`
-4. **Trigger**: Just the push event
-5. Mentés után: a zöld pipa jelzi a sikeres kapcsolatot
+### 7) Skálázódás ellenőrzése UI-ban
 
----
-
-## Automatikus skálázás (HPA)
-
-A frontend és a backend réteg `HorizontalPodAutoscaler` segítségével CPU-kihasználtság alapján automatikusan skálázódik.
-
-| Komponens | Min replika | Max replika | CPU célkihasználtság |
-|-----------|:-----------:|:-----------:|:--------------------:|
-| frontend  | 1           | 5           | 50 %                 |
-| backend   | 1           | 5           | 50 %                 |
-
-A CPU request értékek szándékosan alacsonyak (**50m request / 200m limit**), hogy a terhelésteszt kis terhelés esetén is kiváltsa a skálázást.
-
-**Megjegyzés a backendről:** Az `uploads-pvc` PVC `ReadWriteOnce` módban van, tehát a feltöltött képfájlok csak az azt felcsatoló podból érhetők el. Ha a klaszter storage class-ja támogat `ReadWriteMany` hozzáférési módot (pl. CephFS), módosítsd a `backend.yaml`-ban a PVC `accessModes` mezőjét. Az autentikáció és az adatbázis-műveletek RWO esetén is párhuzamosan skálázódnak.
-
-### HPA telepítése
-
-```bash
-# 1. Alkalmazd az HPA konfigurációt:
-oc apply -f openshift/hpa.yaml
-
-# 2. Ellenőrizd az állapotot:
-oc get hpa
-oc describe hpa frontend-hpa
-oc describe hpa backend-hpa
-```
-
-### Skálázás megfigyelése terhelés közben
-
-```bash
-# HPA állapot folyamatos figyelése:
-watch oc get hpa
-
-# Podok számának változása:
-watch oc get pods -l app=frontend
-watch oc get pods -l app=backend
-```
+1. Locust terhelés alatt nyisd meg: **Observe → Horizontal Pod Autoscalers**.
+2. Közben nyisd meg: **Workloads → Deployments**.
+3. Ellenőrizd, hogy a frontend/backend replika szám nő (`1 -> n`) terhelés alatt.
+4. Terhelés leállítása után ellenőrizd, hogy visszaskáláz (`n -> 1`).
+5. A bizonyításhoz készíts képernyőképeket:
+  - HPA nézet (terhelés alatt)
+  - Deployment replika változás
+  - Locust statisztika oldal
 
 ---
 
-## Terhelésteszt (Locust)
+## Terhelésteszt lefedettség
 
-A `locust/` könyvtár tartalmazza a Python-alapú [Locust](https://locust.io) terhelésteszt konfigurációját.
+A [locust/locustfile.py](locust/locustfile.py) az alkalmazás fő funkcióit terheli:
 
-### Lefedett API funkciók
+- Regisztráció / bejelentkezés
+- Fotólista (dátum és név szerinti rendezés)
+- Fotó feltöltés
+- Fotó megtekintés
+- Fotó törlés
 
-| Feladat | Végpont | Relatív arány |
-|---------|---------|:-------------:|
-| Állapot-ellenőrzés | `GET /api/health` | 1× |
-| Fotólista (dátum) | `GET /api/photos` | 4× |
-| Fotólista (név) | `GET /api/photos?sort=name` | 2× |
-| Fotó feltöltése | `POST /api/photos` | 3× |
-| Fotó megtekintése | `GET /api/photos/<id>` + `/image` | 3× |
-| Fotó törlése | `DELETE /api/photos/<id>` | 1× |
-
-Minden virtuális felhasználó `on_start`-kor regisztrál és bejelentkezik, majd a fenti feladatokat vegyesen hajtja végre 1–3 másodperces várakozásokkal.
-
-### Futtatás OpenShift-ből (felhőből)
-
-A feladatleírás előírja, hogy a terhelésteszt felhőből fusson. A Locust a `photowebapp` névtéren belül deployolható, ahonnan közvetlenül eléri a backend service-t.
-
-```bash
-oc apply -f locust/locust-openshift.yaml
-
-# Web UI URL:
-oc get route locust
-```
-
-A megjelenő HTTPS URL-en érhető el a Locust web felülete. Ajánlott beállítások:
-
-- **Number of users:** 20–50
-- **Spawn rate:** 5 user/s
-- **Host:** `http://backend:5001`
-
-### Lokális futtatás (fejlesztéshez)
-
-```bash
-pip install locust
-cd locust
-locust --host http://<frontend-route-url>
-# Böngészőben: http://localhost:8089
-```
-
-### Locust eltávolítása
-
-```bash
-oc delete -f locust/locust-openshift.yaml
-```
+Így a teszt nem csak egy API végpontot terhel, hanem a teljes felhasználói működést modellezi.
 
 ---
 
-## Task 2: Automatikus skálázás és terheléseszt (OpenShift PaaS)
+## Fontos megjegyzések
 
-### Automatikus skálázás konfigurációja
-
-A frontend és backend rétegek `HorizontalPodAutoscaler` (HPA) segítségével CPU-kihasználtság alapján automatikusan skálázódnak 1-5 replika között.
-
-| Komponens | Min replika | Max replika | CPU célkihasználtság | Skálázási viselkedés |
-|-----------|:-----------:|:-----------:|:--------------------:|---------------------|
-| frontend  | 1           | 5           | 50 %                 | +2 pod/30s (felfelé), +1 pod/60s (lefelé) |
-| backend   | 1           | 5           | 50 %                 | +2 pod/30s (felfelé), +1 pod/60s (lefelő) |
-
-**Skálázási viselkedés:**
-- **Felfelé skálázás:** 0 másodperc stabilizációs idő (azonnali reakció)
-- **Lefelé skálázás:** 60 másodperc stabilizációs idő (hogy ne ugorjon fel/le)
-
-**Erőforrás kérések (per pod):**
-- Frontend: 100m CPU (kérés) / 200m CPU (limit), 128Mi memória (kérés) / 256Mi (limit)
-- Backend: 100m CPU (kérés) / 500m CPU (limit), 128Mi memória (kérés) / 512Mi (limit)
-- MySQL: 200m CPU (kérés) / 500m CPU (limit), 512Mi memória (kérés) / 1Gi (limit)
-
-**Fontos megjegyzés a backendről:** Az `uploads-pvc` PVC `ReadWriteOnce` (RWO) módban van, tehát a feltöltött képfájlok csak az azt felcsatoló podból érhetők el. Ha a klaszter storage class-ja támogat `ReadWriteMany` (RWX) hozzáférési módot (pl. CephFS, NFS), módosítsd az `openshift/openshift-all.yaml`-ban az `uploads-pvc` `accessModes` mezőjét. Az autentikáció és az adatbázis-műveletek RWO esetén is párhuzamosan skálázódnak.
-
-### HPA telepítése
-
-```bash
-# 1. Alkalmazd az összes konfigurációt (HPA is tartalmazza):
-oc apply -f openshift/openshift-all.yaml
-
-# 2. Vagy csak az HPA-t:
-oc apply -f openshift/hpa.yaml
-
-# 3. Ellenőrizd az állapotot:
-oc get hpa
-oc describe hpa frontend-hpa
-oc describe hpa backend-hpa
-```
-
-### Skálázás megfigyelése
-
-```bash
-# HPA állapot folyamatos figyelése:
-watch oc get hpa
-
-# Podok számának változása:
-watch oc get pods -l app=frontend
-watch oc get pods -l app=backend
-
-# HPA események:
-oc get events --field-selector reason=SuccessfulRescale
-```
-
-### Terheléseszt konfigurációja (Locust)
-
-A `locust/locustfile.py` tartalmazza a terheléseszt konfigurációt, amely lefedi az összes API funkciót:
-
-| Feladat | Végpont | Relatív arány | Leírás |
-|---------|---------|:-------------:|--------|
-| Health check | `GET /api/health` | 1× | Állapot-ellenőrzés |
-| List by date | `GET /api/photos?sort=date` | 4× | Fotólista dátum szerint |
-| View photo | `GET /api/photos/<id>` + `/image` | 3× | Fotó megtekintése |
-| Upload photo | `POST /api/photos` | 3× | Fotó feltöltése |
-| List by name | `GET /api/photos?sort=name` | 2× | Fotólista név szerint |
-| Delete photo | `DELETE /api/photos/<id>` | 1× | Fotó törlése |
-
-**Terheléseszt futtatása OpenShift-ből (felhőből):**
-
-```bash
-# 1. Deployold a Locustot:
-oc apply -f locust/locust-openshift.yaml
-
-# 2. Szerezd be a web UI URL-t:
-oc get route locust
-# Web UI: https://locust-<namespace>.apps.<cluster>
-
-# 3. Konfiguráció a web UI-ban:
-#    - Number of users: 50
-#    - Spawn rate: 5 users/s
-#    - Host: http://backend:5001
-
-# 4. Kattints "Start swarming" és figyeld a skálázást
-```
-
-**Terheléseszt futtatás helyi gépen:**
-
-```bash
-pip install locust
-cd locust
-locust --host http://backend:5001
-# Böngészőben: http://localhost:8089
-```
-
-### Automatikus skálázás igazolása (Proof of Scaling)
-
-A skálázás igazolásához gyűjtsd össze a következő információkat:
-
-**1. Skálázás felfelé (terhelés alatt):**
-```bash
-# Előtte (1 replika):
-oc get hpa
-oc get pods -l app=frontend -o wide
-oc get pods -l app=backend -o wide
-
-# Utána (5 replika):
-oc get hpa
-oc get pods -l app=frontend -o wide
-oc get pods -l app=backend -o wide
-
-# Skálázási események:
-oc get events --field-selector reason=SuccessfulRescale
-```
-
-**2. Skálázás lefelé (terhelés után):**
-```bash
-# Miután a terhelés csökkent:
-oc get hpa
-oc get pods -l app=frontend -o wide
-oc get pods -l app=backend -o wide
-```
-
-**3. Teljesítmény metrikák:**
-- Átlagos válaszidő: < 2 másodperc
-- Hiba arány: < 1%
-- Max CPU használat: < 70%
-- Adatbázis kapcsolatok: stabil
-
-**4. Screenshots:**
-- HPA állapot a skálázás közben
-- Pod szám változás grafikon
-- Locust teszt eredmények
-- Erőforrás használat grafikon
-
-**Teljes tesztelési eljárás részletesen:** Lásd `openshift/task2-load-test-guide.md`
-
-**Igazolási sablon:** Lásd `openshift/task2-proof-template.md`
+- A képfájlok `uploads-pvc` volume-on maradnak meg.
+- A MySQL adatok `mysql-pvc` volume-on maradnak meg.
+- Backend oldalon `ReadWriteOnce` esetén a fájlmegosztás több replika között korlátozott lehet.
+- A `CHANGE_THIS_*` értékeket minden környezetben cserélni kell.
 
 ---
 
-## Megjegyzések
+## További dokumentáció
 
-- A feltöltött képek PersistentVolumeClaim (`uploads-pvc`, 5Gi) volume-on tárolódnak – pod újraindítás esetén megmaradnak.
-- A MySQL adatai szintén PVC-n tárolódnak (`mysql-pvc`, 5Gi).
-- A MySQL image a hivatalos Red Hat registryből származik: `registry.access.redhat.com/rhscl/mysql-80-rhel7`.
-- A `mysql/mysql.yaml`-ban lévő Secret-ben minden `CHANGE_THIS_*` értéket éles jelszóra kell cserélni az alkalmazás élesítése előtt.
-- A `k8s/photowebapp.yaml` fejlesztési/tesztelési célra szolgál lokális Kubernetes clusterhez (pl. Minikube, Kind).
+Részletes Task 2 anyagok az `openshift` mappában:
 
----
-
-## Task 2: Részletes dokumentáció
-
-A Task 2 (automatikus skálázás és terheléseszt) részletes dokumentációja a `openshift/` könyvtárban található:
-
-| Fájl | Leírás |
-|------|--------|
-| `openshift/TASK2_SCALING_CONFIG.md` | Részletes HPA konfiguráció és beállítások |
-| `openshift/TASK2_LOAD_TEST_REPORT.md` | Teljes terheléseszt jelentés és eredmények |
-| `openshift/TASK2_LESSONS_LEARNED.md` | Tanult leckék és tapasztalatok |
-| `openshift/README_TASK2.md` | Gyors kezdési útmutató |
-| `openshift/task2-load-test-guide.md` | Step-by-step load testing útmutató |
-| `openshift/task2-proof-template.md` | Proof of scaling sablon |
-| `openshift/task2-test-script.sh` | Automatizált teszt script |
-
-### Gyors indítás
-
-```bash
-# 1. Alkalmazd az összes konfigurációt
-oc apply -f openshift/openshift-all.yaml
-
-# 2. Deployold a Locustot
-oc apply -f locust/locust-openshift.yaml
-
-# 3. Nézd meg a Locust UI-t
-oc get route locust
-
-# 4. Figyeld a skálázást
-watch oc get hpa
-watch oc get pods -l app=frontend
-watch oc get pods -l app=backend
-```
+- [openshift/TASK2_SCALING_CONFIG.md](openshift/TASK2_SCALING_CONFIG.md)
+- [openshift/TASK2_LOAD_TEST_REPORT.md](openshift/TASK2_LOAD_TEST_REPORT.md)
+- [openshift/TASK2_LESSONS_LEARNED.md](openshift/TASK2_LESSONS_LEARNED.md)
+- [openshift/README_TASK2.md](openshift/README_TASK2.md)
+- [openshift/task2-load-test-guide.md](openshift/task2-load-test-guide.md)
+- [openshift/task2-proof-template.md](openshift/task2-proof-template.md)
