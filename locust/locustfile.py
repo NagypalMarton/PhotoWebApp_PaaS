@@ -17,6 +17,7 @@ Lokális futtatás:
 
 import io
 import random
+from typing import Optional
 
 from locust import HttpUser, between, task
 
@@ -104,7 +105,7 @@ class PhotoAlbumUser(HttpUser):
     def _jpeg(self) -> io.BytesIO:
         return io.BytesIO(MINIMAL_JPEG)
 
-    def _random_photo_id(self) -> int | None:
+    def _random_photo_id(self) -> Optional[int]:
         """Visszaad egy véletlenszerűen kiválasztott fotó ID-t a globális listából."""
         resp = self.client.get(
             "/api/photos",
