@@ -26,7 +26,7 @@ spec:
       containers:
         - name: locust-master
           image: locust:latest
-          args: ["-f", "/app/locustfile.py", "--master", "--host", "http://frontend:80"]
+          args: ["-f", "/app/locustfile.py", "--master", "--host", "http://backend:5001"]
           ports:
             - name: web-ui
               containerPort: 8089
