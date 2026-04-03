@@ -7,67 +7,33 @@ Lefedett funkciók:
   - Fotó feltöltése
   - Fotó megtekintése (metaadatok + képfájl)
   - Fotó törlése
-
-Futtatás OpenShift-ben:
-  oc apply -f locust/locust-openshift.yaml
-
-Lokális futtatás:
-  locust --host http://<backend-route-url>
 """
 
 import io
+import re
 import random
+import string
 from typing import Optional
 
 from locust import HttpUser, between, task
 
-# Minimális érvényes 1x1 pixeles JPEG (piros szín)
-MINIMAL_JPEG = bytes([
-    0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01,
-    0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xFF, 0xDB, 0x00, 0x43,
-    0x00, 0x08, 0x06, 0x06, 0x07, 0x06, 0x05, 0x08, 0x07, 0x07, 0x07, 0x09,
-    0x09, 0x08, 0x0A, 0x0C, 0x14, 0x0D, 0x0C, 0x0B, 0x0B, 0x0C, 0x19, 0x12,
-    0x13, 0x0F, 0x14, 0x1D, 0x1A, 0x1F, 0x1E, 0x1D, 0x1A, 0x1C, 0x1C, 0x20,
-    0x24, 0x2E, 0x27, 0x20, 0x22, 0x2C, 0x23, 0x1C, 0x1C, 0x28, 0x37, 0x29,
-    0x2C, 0x30, 0x31, 0x34, 0x34, 0x34, 0x1F, 0x27, 0x39, 0x3D, 0x38, 0x32,
-    0x3C, 0x2E, 0x33, 0x34, 0x32, 0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x01,
-    0x00, 0x01, 0x01, 0x01, 0x11, 0x00, 0xFF, 0xC4, 0x00, 0x1F, 0x00, 0x00,
-    0x01, 0x05, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-    0x09, 0x0A, 0x0B, 0xFF, 0xC4, 0x00, 0xB5, 0x10, 0x00, 0x02, 0x01, 0x03,
-    0x03, 0x02, 0x04, 0x03, 0x05, 0x05, 0x04, 0x04, 0x00, 0x00, 0x01, 0x7D,
-    0x01, 0x02, 0x03, 0x00, 0x04, 0x11, 0x05, 0x12, 0x21, 0x31, 0x41, 0x06,
-    0x13, 0x51, 0x61, 0x07, 0x22, 0x71, 0x14, 0x32, 0x81, 0x91, 0xA1, 0x08,
-    0x23, 0x42, 0xB1, 0xC1, 0x15, 0x52, 0xD1, 0xF0, 0x24, 0x33, 0x62, 0x72,
-    0x82, 0x09, 0x0A, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x25, 0x26, 0x27, 0x28,
-    0x29, 0x2A, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3A, 0x43, 0x44, 0x45,
-    0x46, 0x47, 0x48, 0x49, 0x4A, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59,
-    0x5A, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6A, 0x73, 0x74, 0x75,
-    0x76, 0x77, 0x78, 0x79, 0x7A, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89,
-    0x8A, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99, 0x9A, 0xA2, 0xA3,
-    0xA4, 0xA5, 0xA6, 0xA7, 0xA8, 0xA9, 0xAA, 0xB2, 0xB3, 0xB4, 0xB5, 0xB6,
-    0xB7, 0xB8, 0xB9, 0xBA, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7, 0xC8, 0xC9,
-    0xCA, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 0xD8, 0xD9, 0xDA, 0xE1, 0xE2,
-    0xE3, 0xE4, 0xE5, 0xE6, 0xE7, 0xE8, 0xE9, 0xEA, 0xF1, 0xF2, 0xF3, 0xF4,
-    0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFF, 0xDA, 0x00, 0x08, 0x01, 0x01,
-    0x00, 0x00, 0x3F, 0x00, 0xFB, 0x28, 0xA2, 0x80, 0xFF, 0xD9,
-])
-
-
 class PhotoAlbumUser(HttpUser):
     """
     Egy virtuális felhasználó szimulációja:
-      1. Regisztráció (on_start)
-      2. Bejelentkezés, token megszerzése (on_start)
-      3. Vegyesen: listázás, feltöltés, megtekintés, törlés
+            1. Regisztráció a frontend felületen (on_start)
+            2. Bejelentkezés a frontend felületen (on_start)
+            3. 5-25 kép letöltése a Picsumról (on_start)
+            4. Vegyesen: rendezés, feltöltés, megtekintés, törlés, kijelentkezés
 
     Kérések aránya:
-      list_by_date   : 4
-      view_photo     : 3
-      upload_photo   : 3
-      list_by_name   : 2
-      delete_photo   : 1
-      health_check   : 1
+            list_by_date_desc   : 2
+            list_by_date_asc    : 2
+            list_by_name_desc   : 2
+            list_by_name_asc    : 2
+            view_photo          : 3
+            upload_photo        : 3
+            delete_photo        : 1
+            logout              : 1
     """
 
     wait_time = between(1, 3)
@@ -75,103 +41,154 @@ class PhotoAlbumUser(HttpUser):
     def on_start(self):
         self.username = f"lt_{random.randint(100_000, 999_999)}"
         self.password = "LoadTest123!"
-        self.token = None
+        self.frontend_logged_in = False
         self.own_photo_ids: list[int] = []
+        self.upload_images: list[bytes] = []
 
         # Regisztráció – ha már létezik, nem probléma
         self.client.post(
-            "/api/register",
-            json={"username": self.username, "password": self.password},
-            name="/api/register",
+            "/register",
+            data={"username": self.username, "password": self.password},
+            name="/register [POST]",
         )
 
         # Bejelentkezés
         resp = self.client.post(
-            "/api/login",
-            json={"username": self.username, "password": self.password},
-            name="/api/login",
+            "/login",
+            data={"username": self.username, "password": self.password},
+            name="/login [POST]",
         )
-        if resp.status_code == 200:
-            self.token = resp.json().get("token")
+        self.frontend_logged_in = resp.status_code in (200, 302)
+
+        self.upload_images = self._download_upload_images()
 
     # ------------------------------------------------------------------
     # Segédmetódusok
     # ------------------------------------------------------------------
 
-    @property
-    def _auth(self) -> dict:
-        return {"Authorization": f"Bearer {self.token}"} if self.token else {}
+    def _frontend_login(self) -> None:
+        resp = self.client.post(
+            "/login",
+            data={"username": self.username, "password": self.password},
+            name="/login [POST]",
+        )
+        self.frontend_logged_in = resp.status_code in (200, 302)
+
+    def _ensure_frontend_login(self) -> None:
+        if not self.frontend_logged_in:
+            self._frontend_login()
 
     def _jpeg(self) -> io.BytesIO:
-        return io.BytesIO(MINIMAL_JPEG)
+        if self.upload_images:
+            return io.BytesIO(random.choice(self.upload_images))
+        return io.BytesIO()
 
-    def _random_photo_id(self) -> Optional[int]:
-        """Visszaad egy véletlenszerűen kiválasztott fotó ID-t a globális listából."""
+    def _download_upload_images(self) -> list[bytes]:
+        images: list[bytes] = []
+        image_count = random.randint(5, 25)
+
+        for _ in range(image_count):
+            cache_buster = random.randint(1, 1_000_000_000)
+            resp = self.client.get(
+                f"https://picsum.photos/200?cachebust={cache_buster}",
+                name="https://picsum.photos/200 [download]",
+                allow_redirects=True,
+            )
+            if resp.status_code == 200 and resp.content:
+                images.append(resp.content)
+
+        return images
+
+    def _random_name(self) -> str:
+        name_length = random.randint(1, 40)
+        alphabet = string.ascii_letters + string.digits
+        return "".join(random.choice(alphabet) for _ in range(name_length))
+
+    def _photo_ids_from_index(self, sort: str = "date", order: str = "desc") -> list[int]:
+        """Visszaadja a frontend index oldalon látható fotó ID-kat."""
         resp = self.client.get(
-            "/api/photos",
-            name="/api/photos [list for pick]",
+            f"/?sort={sort}&order={order}",
+            name=f"/?sort={sort}&order={order} [pick]",
         )
         if resp.status_code == 200:
-            photos = resp.json().get("photos", [])
-            if photos:
-                return random.choice(photos)["id"]
+            return [int(match) for match in re.findall(r'href="/photo/(\d+)"', resp.text)]
+        return []
+
+    def _random_photo_id(self, sort: str = "date", order: str = "desc") -> Optional[int]:
+        photo_ids = self._photo_ids_from_index(sort=sort, order=order)
+        if photo_ids:
+            return random.choice(photo_ids)
         return None
 
     # ------------------------------------------------------------------
     # Feladatok
     # ------------------------------------------------------------------
 
-    @task(1)
-    def health_check(self):
-        """GET /api/health – állapot-ellenőrzés"""
-        self.client.get("/api/health")
-
-    @task(4)
-    def list_photos_by_date(self):
-        """GET /api/photos – fotólista dátum szerint (alapértelmezett)"""
-        self.client.get("/api/photos", name="/api/photos?sort=date")
+    @task(2)
+    def list_photos_by_date_desc(self):
+        """GET /?sort=date&order=desc – fotólista dátum szerint, csökkenő sorrendben"""
+        self.client.get("/?sort=date&order=desc", name="/?sort=date&order=desc")
 
     @task(2)
-    def list_photos_by_name(self):
-        """GET /api/photos?sort=name – fotólista névsorban"""
-        self.client.get("/api/photos?sort=name")
+    def list_photos_by_date(self):
+        """GET /?sort=date&order=asc – fotólista dátum szerint, növekvő sorrendben"""
+        self.client.get("/?sort=date&order=asc", name="/?sort=date&order=asc")
+
+    @task(2)
+    def list_photos_by_name_desc(self):
+        """GET /?sort=name&order=desc – fotólista név szerint, csökkenő sorrendben"""
+        self.client.get("/?sort=name&order=desc", name="/?sort=name&order=desc")
+
+    @task(2)
+    def list_photos_by_name_asc(self):
+        """GET /?sort=name&order=asc – fotólista név szerint, növekvő sorrendben"""
+        self.client.get("/?sort=name&order=asc", name="/?sort=name&order=asc")
 
     @task(3)
     def upload_photo(self):
-        """POST /api/photos – fotó feltöltése (csak bejelentkezett felhasználónak)"""
-        if not self.token:
+        """POST /upload – fotó feltöltése a frontend űrlapon keresztül"""
+        if not self.frontend_logged_in:
+            return
+        if not self.upload_images:
             return
         resp = self.client.post(
-            "/api/photos",
-            headers=self._auth,
+            "/upload",
             files={"photo": ("test.jpg", self._jpeg(), "image/jpeg")},
-            data={"name": f"Teszt_{random.randint(1000, 9999)}"},
-            name="/api/photos [POST]",
+            data={"name": self._random_name()},
+            name="/upload [POST]",
         )
-        if resp.status_code == 201:
-            photo_id = resp.json().get("id")
+        if resp.status_code in (200, 302):
+            photo_id = self._random_photo_id(sort="date", order="desc")
             if photo_id:
                 self.own_photo_ids.append(photo_id)
 
     @task(3)
     def view_photo(self):
-        """GET /api/photos/<id> + GET /api/photos/<id>/image – fotó megtekintése"""
+        """GET /photo/<id> + GET /photo/<id>/image – fotó megtekintése"""
         photo_id = self._random_photo_id()
         if photo_id is None:
             return
-        self.client.get(f"/api/photos/{photo_id}", name="/api/photos/[id]")
+        self.client.get(f"/photo/{photo_id}", name="/photo/[id]")
         self.client.get(
-            f"/api/photos/{photo_id}/image", name="/api/photos/[id]/image"
+            f"/photo/{photo_id}/image", name="/photo/[id]/image"
         )
 
     @task(1)
     def delete_own_photo(self):
-        """DELETE /api/photos/<id> – saját fotó törlése"""
-        if not self.token or not self.own_photo_ids:
+        """POST /delete/<id> – saját fotó törlése a frontend felületen"""
+        if not self.frontend_logged_in or not self.own_photo_ids:
             return
         photo_id = self.own_photo_ids.pop(0)
-        self.client.delete(
-            f"/api/photos/{photo_id}",
-            headers=self._auth,
-            name="/api/photos/[id] [DELETE]",
+        self.client.post(
+            f"/delete/{photo_id}",
+            name="/delete/[id] [POST]",
         )
+
+    @task(1)
+    def logout(self):
+        """GET /logout – kijelentkezés, majd újrabejelentkezés a frontend sessionhöz"""
+        if not self.frontend_logged_in:
+            return
+        self.client.get("/logout", name="/logout")
+        self.frontend_logged_in = False
+        self._frontend_login()
