@@ -38,8 +38,6 @@ spec:
             - containerPort: 8089
               name: web-ui
           env:
-            - name: LOCUST_TARGET_HOST
-              value: "http://backend:5001"
             - name: LOCUST_MODE
               value: "standalone"
           resources:
