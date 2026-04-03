@@ -7,19 +7,17 @@ FROM registry.access.redhat.com/ubi9/python-39
 
 WORKDIR /app
 
-# Create a non-root user for security
-RUN useradd -u 1000 -m -s /bin/bash locustuser && \
-    mkdir -p /home/locustuser/.cache/pip && \
-    chown -R locustuser:locustuser /app /home/locustuser/.cache
+# OpenShift runs containers with an arbitrary non-root UID.
+# Group-writable permissions for GID 0 keep the image SCC-compatible.
+RUN mkdir -p /app && \
+    chgrp -R 0 /app && \
+    chmod -R g=u /app
 
 # Install dependencies as root first, then switch to non-root user
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY locustfile.py .
-
-# Switch to non-root user
-USER locustuser
 
 # 8089 – web UI, 5557/5558 – master–worker kommunikáció
 EXPOSE 8089 5557 5558
