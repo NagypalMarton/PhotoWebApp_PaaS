@@ -272,6 +272,146 @@ spec:
           value: 1
           periodSeconds: 60
 ---
+# ==============================================================================
+# Locust - Cloud Load Test (separate app in the same OpenShift project)
+# Targets frontend service to exercise full PaaS flow: frontend -> backend -> mysql
+# ==============================================================================
+apiVersion: v1
+kind: Secret
+metadata:
+  name: photowebapp-webhook-secret
+type: Opaque
+stringData:
+  WebHookSecretKey: CHANGE_THIS_WEBHOOK_SECRET
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: locust
+spec:
+  lookupPolicy:
+    local: true
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: locust-build
+spec:
+  runPolicy: Serial
+  source:
+    type: Git
+    git:
+      uri: https://github.com/NagypalMarton/PhotoWebApp_PaaS.git
+      ref: main
+    contextDir: locust
+  strategy:
+    type: Docker
+    dockerStrategy: {}
+  output:
+    to:
+      kind: ImageStreamTag
+      name: locust:latest
+  triggers:
+    - type: GitHub
+      github:
+        secretReference:
+          name: photowebapp-webhook-secret
+    - type: ImageChange
+    - type: ConfigChange
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: locust-master
+  annotations:
+    image.openshift.io/triggers: '[{"from":{"kind":"ImageStreamTag","name":"locust:latest"},"fieldPath":"spec.template.spec.containers[?(@.name==\"locust-master\")].image"}]'
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: locust
+      component: master
+  template:
+    metadata:
+      labels:
+        app: locust
+        component: master
+    spec:
+      containers:
+        - name: locust-master
+          image: locust:latest
+          args: ["-f", "/app/locustfile.py", "--master", "--host", "http://frontend:80"]
+          ports:
+            - containerPort: 8089
+            - containerPort: 5557
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 512Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: locust-worker
+  annotations:
+    image.openshift.io/triggers: '[{"from":{"kind":"ImageStreamTag","name":"locust:latest"},"fieldPath":"spec.template.spec.containers[?(@.name==\"locust-worker\")].image"}]'
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: locust
+      component: worker
+  template:
+    metadata:
+      labels:
+        app: locust
+        component: worker
+    spec:
+      containers:
+        - name: locust-worker
+          image: locust:latest
+          args: ["-f", "/app/locustfile.py", "--worker", "--master-host", "locust-master"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: locust-master
+spec:
+  selector:
+    app: locust
+    component: master
+  ports:
+    - name: web-ui
+      port: 8089
+      targetPort: 8089
+    - name: worker
+      port: 5557
+      targetPort: 5557
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: locust
+spec:
+  to:
+    kind: Service
+    name: locust-master
+  port:
+    targetPort: web-ui
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+---
 # Backend HPA - scales 1-5 replicas based on CPU utilization (target: 30%)
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler

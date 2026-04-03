@@ -5,6 +5,16 @@
 # ==============================================================================
 
 ---
+# Shared webhook secret for BuildConfig GitHub trigger
+apiVersion: v1
+kind: Secret
+metadata:
+  name: photowebapp-webhook-secret
+type: Opaque
+stringData:
+  WebHookSecretKey: CHANGE_THIS_WEBHOOK_SECRET
+
+---
 # BuildConfig for Locust image (using Docker strategy)
 apiVersion: build.openshift.io/v1
 kind: BuildConfig
@@ -21,22 +31,16 @@ spec:
     contextDir: "locust"
   strategy:
     type: Docker
-    dockerStrategy:
-      from:
-        kind: ImageStreamTag
-        namespace: openshift
-        name: python:3.9
+    dockerStrategy: {}
   output:
     to:
       kind: ImageStreamTag
       name: locust:latest
   triggers:
-    - type: Generic
-      generic:
-        secret: 00000000-0000-0000-0000-000000000000
     - type: GitHub
       github:
-        secret: 00000000-0000-0000-0000-000000000000
+        secretReference:
+          name: photowebapp-webhook-secret
     - type: ConfigChange
     - type: ImageChange
 

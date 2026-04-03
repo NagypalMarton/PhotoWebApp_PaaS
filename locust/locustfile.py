@@ -111,7 +111,7 @@ class PhotoAlbumUser(HttpUser):
             name="/api/photos [list for pick]",
         )
         if resp.status_code == 200:
-            photos = resp.json()
+            photos = resp.json().get("photos", [])
             if photos:
                 return random.choice(photos)["id"]
         return None
@@ -143,7 +143,7 @@ class PhotoAlbumUser(HttpUser):
         resp = self.client.post(
             "/api/photos",
             headers=self._auth,
-            files={"file": ("test.jpg", self._jpeg(), "image/jpeg")},
+            files={"photo": ("test.jpg", self._jpeg(), "image/jpeg")},
             data={"name": f"Teszt_{random.randint(1000, 9999)}"},
             name="/api/photos [POST]",
         )
