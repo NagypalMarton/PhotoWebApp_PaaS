@@ -141,15 +141,20 @@ def list_photos():
     # Use getattr for dynamic column selection - cleaner than nested if-else
     sort_column = Photo.name if sort == "name" else Photo.uploaded_at
     order_func = getattr(sort_column, order)
-    query = Photo.query.order_by(order_func())
+    query = (
+        db.session.query(Photo, User.username)
+        .join(User, Photo.owner_id == User.id)
+        .order_by(order_func())
+    )
 
     photos = [
         {
             "id": photo.id,
             "name": photo.name,
             "uploaded_at": photo.uploaded_at.strftime("%Y-%m-%d %H:%M"),
+            "uploaded_by": username,
         }
-        for photo in query.all()
+        for photo, username in query.all()
     ]
     return jsonify({"photos": photos})
 
@@ -206,11 +211,14 @@ def photo_detail(photo_id: int):
     if error_response:
         return error_response, status_code
 
+    owner = User.query.get(photo.owner_id)
+
     return jsonify(
         {
             "id": photo.id,
             "name": photo.name,
             "uploaded_at": photo.uploaded_at.strftime("%Y-%m-%d %H:%M"),
+            "uploaded_by": owner.username if owner else "ismeretlen",
             "image_url": f"/api/photos/{photo.id}/image",
         }
     )
