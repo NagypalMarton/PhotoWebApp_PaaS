@@ -161,7 +161,8 @@ Ez a szakasz egységesen OpenShift és GitHub UI lépésekkel írja le a teljes 
 5. A Locust UI-ban állítsd be:
   - Number of users: `30-60`
   - Spawn rate: `5-10`
-  - Host: `http://frontend:80`
+  - Host: `http://backend:5001`
+  - Megjegyzés: a Locust a backend `/api/*` végpontokat terheli.
 6. Kattints **Start swarming**.
 
 ### 6) GitHub webhook beállítás UI-ból
