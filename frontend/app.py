@@ -82,15 +82,13 @@ def photo_image_proxy(photo_id: int):
     try:
         response = requests.get(backend(f"/api/photos/{photo_id}/image"), timeout=20)
     except requests.RequestException:
-        flash(ERROR_MESSAGES["backend_unavailable"], FLASH_CATEGORIES["error"])
-        return redirect(url_for("photo_view", photo_id=photo_id))
+        return Response("Backend unavailable", status=503, content_type="text/plain")
 
     if not response.ok:
         if response.status_code == 404:
-            flash(backend_error_message(response, "A kép nem található."), FLASH_CATEGORIES["warning"])
+            return Response("Image not found", status=404, content_type="text/plain")
         else:
-            flash(backend_error_message(response, "A kép betöltése sikertelen."), FLASH_CATEGORIES["danger"])
-        return redirect(url_for("photo_view", photo_id=photo_id))
+            return Response("Image load failed", status=response.status_code, content_type="text/plain")
 
     return Response(
         response.content,
@@ -152,9 +150,8 @@ def delete(photo_id: int):
         flash(ERROR_MESSAGES["auth_required"], FLASH_CATEGORIES["error"])
         return redirect(url_for("index"))
 
-    headers = {"Authorization": f"Bearer {session.get('token')}"}
     try:
-        response = requests.delete(backend(f"/api/photos/{photo_id}"), headers=headers, timeout=10)
+        response = requests.delete(backend(f"/api/photos/{photo_id}"), headers=api_headers(), timeout=10)
         if response.ok:
             flash(SUCCESS_MESSAGES["delete"], FLASH_CATEGORIES["success"])
         else:

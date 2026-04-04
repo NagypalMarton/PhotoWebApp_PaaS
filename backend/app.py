@@ -6,7 +6,7 @@ from datetime import datetime
 from functools import wraps
 from uuid import uuid4
 
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, jsonify, request, send_file, g
 from flask_sqlalchemy import SQLAlchemy
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -97,7 +97,7 @@ def auth_required(func):
         if not user_id:
             return jsonify({"error": ERROR_MESSAGES["invalid_token"]}), 401
 
-        request.user_id = user_id
+        g.user_id = user_id
         return func(*args, **kwargs)
 
     return wrapper
@@ -216,7 +216,7 @@ def upload_photo():
         filename=unique_filename,
         content_type=content_type,
         image_data=image_data,
-        owner_id=request.user_id,
+        owner_id=g.user_id,
     )
     db.session.add(photo)
     db.session.commit()
@@ -231,7 +231,7 @@ def delete_photo(photo_id: int):
     if error_response:
         return error_response, status_code
     
-    owner_error = check_photo_owner(photo, request.user_id)
+    owner_error = check_photo_owner(photo, g.user_id)
     if owner_error:
         return owner_error
 
