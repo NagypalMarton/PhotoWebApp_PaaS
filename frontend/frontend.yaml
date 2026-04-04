@@ -5,6 +5,7 @@ metadata:
   annotations:
     image.openshift.io/triggers: '[{"from":{"kind":"ImageStreamTag","name":"photowebapp-frontend:latest"},"fieldPath":"spec.template.spec.containers[?(@.name==\"frontend\")].image"}]'
 spec:
+  revisionHistoryLimit: 2
   selector:
     matchLabels:
       app: frontend

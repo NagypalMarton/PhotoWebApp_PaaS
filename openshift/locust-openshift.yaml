@@ -13,6 +13,7 @@ metadata:
     image.openshift.io/triggers: '[{"from":{"kind":"ImageStreamTag","name":"locust:latest"},"fieldPath":"spec.template.spec.containers[?(@.name==\"locust-master\")].image"}]'
 spec:
   replicas: 1
+  revisionHistoryLimit: 2
   selector:
     matchLabels:
       app: locust
@@ -52,6 +53,7 @@ metadata:
     image.openshift.io/triggers: '[{"from":{"kind":"ImageStreamTag","name":"locust:latest"},"fieldPath":"spec.template.spec.containers[?(@.name==\"locust-worker\")].image"}]'
 spec:
   replicas: 2
+  revisionHistoryLimit: 2
   selector:
     matchLabels:
       app: locust
