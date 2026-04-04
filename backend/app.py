@@ -265,10 +265,8 @@ def init_db_with_retry(max_attempts: int = 30, delay_seconds: int = 2) -> None:
 
 def ensure_photo_blob_columns() -> None:
     with db.engine.begin() as connection:
-        columns = {
-            row[0]
-            for row in connection.execute(text("SHOW COLUMNS FROM photos"))
-        }
+        column_rows = list(connection.execute(text("SHOW COLUMNS FROM photos")))
+        columns = {row[0] for row in column_rows}
 
         if "content_type" not in columns:
             connection.execute(
@@ -278,6 +276,13 @@ def ensure_photo_blob_columns() -> None:
             connection.execute(
                 text("ALTER TABLE photos ADD COLUMN image_data LONGBLOB NULL")
             )
+        else:
+            image_data_row = next((row for row in column_rows if row[0] == "image_data"), None)
+            image_data_type = (image_data_row[1].lower() if image_data_row and len(image_data_row) > 1 else "")
+            if image_data_type != "longblob":
+                connection.execute(
+                    text("ALTER TABLE photos MODIFY COLUMN image_data LONGBLOB NULL")
+                )
 
 
 init_db_with_retry()
