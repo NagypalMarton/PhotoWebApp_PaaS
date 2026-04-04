@@ -41,9 +41,9 @@ def backend_error_message(response, default_message: str) -> str:
 
 
 def request_data() -> dict:
-    if request.is_json:
-        return request.get_json(silent=True) or {}
-    return request.form.to_dict()
+    if not request.is_json:
+        return {}
+    return request.get_json(silent=True) or {}
 
 
 

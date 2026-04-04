@@ -37,6 +37,13 @@ spec:
           image: mysql:8.0
           ports:
             - containerPort: 3306
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
           env:
             - name: MYSQL_DATABASE
               valueFrom:
@@ -99,6 +106,13 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5001
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 512Mi
           env:
             - name: DATABASE_URL
               value: mysql+pymysql://photouser:photopass@mysql:3306/photowebapp
@@ -142,6 +156,13 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5000
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 512Mi
           env:
             - name: BACKEND_URL
               value: http://backend:5001

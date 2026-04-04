@@ -14,7 +14,7 @@ Böngésző
     ▼
 ┌─────────────────────────────┐
 │  Frontend (Flask + Gunicorn) │  :5000
-│  Jinja2 sablonok, Bootstrap  │
+│  JSON API proxy réteg         │
 └─────────────┬───────────────┘
               │  HTTP REST :5001
               ▼
@@ -33,9 +33,9 @@ Böngésző
 
 ### Frontend réteg
 
-- **Technológia:** Python 3.12, Flask 3.1, Gunicorn, Jinja2, Bootstrap 5.3
-- **Feladat:** Szerver-oldali HTML renderelés, HTTP sablonvezérelt UI
-- **Képmegjelenítés:** Proxy route-on keresztül (`/photo/<id>/image`) kéri le a képfájlt a backendtől, így a böngészőnek nem kell közvetlenül a backend service-t elérnie
+- **Technológia:** Python 3.12, Flask 3.1, Gunicorn
+- **Feladat:** JSON API proxy a backend felé és session/token kezelés
+- **Képmegjelenítés:** Proxy route-on keresztül (`/photo/<id>/image`) adja vissza a képfájlt
 - **Session kezelés:** A bejelentkezési token szerver oldali Flask session-ban tárolódik
 
 ### Backend réteg
@@ -87,15 +87,15 @@ Böngésző
 PhotoWebApp_PaaS/
 ├── backend/
 │   ├── app.py                             # Flask REST API
+│   ├── migrate_photo_schema.py            # Külön futtatható séma-migráció
 │   ├── backend.yaml                       # OpenShift ImageStream-alapú Deployment + Service
 │   ├── Dockerfile
 │   └── requirements.txt
 ├── frontend/
-│   ├── app.py                             # Flask UI
+│   ├── app.py                             # Flask JSON API proxy
 │   ├── frontend.yaml                      # OpenShift ImageStream-alapú Deployment + Service + Route
 │   ├── Dockerfile
-│   ├── requirements.txt
-│   └── templates/                         # Jinja2 sablonok
+│   └── requirements.txt
 ├── locust/
 │   ├── locustfile.py                      # Terhelésteszt – minden API funkciót lefed
 │   ├── requirements.txt
@@ -215,4 +215,5 @@ A [locust/locustfile.py](locust/locustfile.py) az alkalmazás fő funkcióit ter
 - A képek bináris tartalma a `photos` táblában marad meg.
 - A MySQL adatok az adatbázisban maradnak meg.
 - A backend már stateless, ezért a backend HPA több replikára skálázható.
+- A backend sémafrissítés (pl. `content_type`, `image_data`) külön scriptben fut: `backend/migrate_photo_schema.py`.
 - A `CHANGE_THIS_*` értékeket minden környezetben cserélni kell.

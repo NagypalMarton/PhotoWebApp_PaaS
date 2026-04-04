@@ -12,11 +12,10 @@ from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 from werkzeug.exceptions import HTTPException
-from sqlalchemy import text
 
 from config import Config
 from constants import (
-    ERROR_MESSAGES, SUCCESS_MESSAGES, FLASH_CATEGORIES,
+    ERROR_MESSAGES, SUCCESS_MESSAGES,
     MIN_USERNAME_LENGTH, MAX_USERNAME_LENGTH, MIN_PASSWORD_LENGTH,
     MAX_PHOTO_NAME_LENGTH, ALLOWED_EXTENSIONS
 )
@@ -25,6 +24,9 @@ app.config.from_object(Config)
 
 db = SQLAlchemy(app)
 serializer = URLSafeTimedSerializer(app.config["SECRET_KEY"])
+
+ALLOWED_SORTS = {"date", "name"}
+ALLOWED_ORDERS = {"asc", "desc"}
 
 
 class User(db.Model):
@@ -146,8 +148,12 @@ def login():
 def list_photos():
     sort = request.args.get("sort", "date")
     order = request.args.get("order", "desc")
-    
-    # Use getattr for dynamic column selection - cleaner than nested if-else
+
+    if sort not in ALLOWED_SORTS:
+        return jsonify({"error": "Invalid sort parameter. Use 'date' or 'name'."}), 400
+    if order not in ALLOWED_ORDERS:
+        return jsonify({"error": "Invalid order parameter. Use 'asc' or 'desc'."}), 400
+
     sort_column = Photo.name if sort == "name" else Photo.uploaded_at
     order_func = getattr(sort_column, order)
     query = (
@@ -276,34 +282,11 @@ def init_db_with_retry(max_attempts: int = 30, delay_seconds: int = 2) -> None:
         try:
             with app.app_context():
                 db.create_all()
-                ensure_photo_blob_columns()
             return
         except Exception as exc:
             last_error = exc
             time.sleep(delay_seconds)
     raise RuntimeError(f"Database initialization failed: {last_error}")
-
-
-def ensure_photo_blob_columns() -> None:
-    with db.engine.begin() as connection:
-        column_rows = list(connection.execute(text("SHOW COLUMNS FROM photos")))
-        columns = {row[0] for row in column_rows}
-
-        if "content_type" not in columns:
-            connection.execute(
-                text("ALTER TABLE photos ADD COLUMN content_type VARCHAR(100) NULL")
-            )
-        if "image_data" not in columns:
-            connection.execute(
-                text("ALTER TABLE photos ADD COLUMN image_data LONGBLOB NULL")
-            )
-        else:
-            image_data_row = next((row for row in column_rows if row[0] == "image_data"), None)
-            image_data_type = (image_data_row[1].lower() if image_data_row and len(image_data_row) > 1 else "")
-            if image_data_type != "longblob":
-                connection.execute(
-                    text("ALTER TABLE photos MODIFY COLUMN image_data LONGBLOB NULL")
-                )
 
 
 init_db_with_retry()
