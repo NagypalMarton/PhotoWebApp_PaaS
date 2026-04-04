@@ -1,14 +1,16 @@
-import os
+import mimetypes
 import time
+from io import BytesIO
 from datetime import datetime
 from functools import wraps
 from uuid import uuid4
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_file
 from flask_sqlalchemy import SQLAlchemy
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
+from sqlalchemy import text
 
 from config import Config
 from constants import (
@@ -18,8 +20,6 @@ from constants import (
 )
 app = Flask(__name__)
 app.config.from_object(Config)
-
-os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
 db = SQLAlchemy(app)
 serializer = URLSafeTimedSerializer(app.config["SECRET_KEY"])
@@ -39,12 +39,19 @@ class Photo(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(40), nullable=False)
     filename = db.Column(db.String(255), nullable=False)
+    content_type = db.Column(db.String(100), nullable=True)
+    image_data = db.Column(db.LargeBinary, nullable=True)
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     owner_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
 
 
 def is_allowed_file(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def detect_content_type(filename: str, fallback: str | None = None) -> str:
+    content_type, _ = mimetypes.guess_type(filename)
+    return content_type or fallback or "application/octet-stream"
 
 
 def token_for_user(user_id: int) -> str:
@@ -174,10 +181,16 @@ def upload_photo():
 
     safe_name = secure_filename(file.filename)
     unique_filename = f"{uuid4().hex}_{safe_name}"
-    file_path = os.path.join(app.config["UPLOAD_FOLDER"], unique_filename)
-    file.save(file_path)
+    image_data = file.read()
+    content_type = detect_content_type(safe_name, file.mimetype)
 
-    photo = Photo(name=name, filename=unique_filename, owner_id=request.user_id)
+    photo = Photo(
+        name=name,
+        filename=unique_filename,
+        content_type=content_type,
+        image_data=image_data,
+        owner_id=request.user_id,
+    )
     db.session.add(photo)
     db.session.commit()
 
@@ -194,10 +207,6 @@ def delete_photo(photo_id: int):
     owner_error = check_photo_owner(photo, request.user_id)
     if owner_error:
         return owner_error
-    
-    file_path = os.path.join(app.config["UPLOAD_FOLDER"], photo.filename)
-    if os.path.exists(file_path):
-        os.remove(file_path)
 
     db.session.delete(photo)
     db.session.commit()
@@ -230,7 +239,14 @@ def photo_image(photo_id: int):
     if not photo:
         return jsonify({"error": "Photo not found"}), 404
 
-    return send_from_directory(app.config["UPLOAD_FOLDER"], photo.filename)
+    if not photo.image_data:
+        return jsonify({"error": "Photo content not available"}), 404
+
+    return send_file(
+        BytesIO(photo.image_data),
+        mimetype=photo.content_type or "application/octet-stream",
+        download_name=photo.filename,
+    )
 
 
 def init_db_with_retry(max_attempts: int = 30, delay_seconds: int = 2) -> None:
@@ -239,11 +255,29 @@ def init_db_with_retry(max_attempts: int = 30, delay_seconds: int = 2) -> None:
         try:
             with app.app_context():
                 db.create_all()
+                ensure_photo_blob_columns()
             return
         except Exception as exc:
             last_error = exc
             time.sleep(delay_seconds)
     raise RuntimeError(f"Database initialization failed: {last_error}")
+
+
+def ensure_photo_blob_columns() -> None:
+    with db.engine.begin() as connection:
+        columns = {
+            row[0]
+            for row in connection.execute(text("SHOW COLUMNS FROM photos"))
+        }
+
+        if "content_type" not in columns:
+            connection.execute(
+                text("ALTER TABLE photos ADD COLUMN content_type VARCHAR(100) NULL")
+            )
+        if "image_data" not in columns:
+            connection.execute(
+                text("ALTER TABLE photos ADD COLUMN image_data LONGBLOB NULL")
+            )
 
 
 init_db_with_retry()

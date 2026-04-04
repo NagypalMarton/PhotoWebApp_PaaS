@@ -19,7 +19,7 @@ spec:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 50
+          averageUtilization: 40
   behavior:
     scaleUp:
       stabilizationWindowSeconds: 0
@@ -35,10 +35,8 @@ spec:
           periodSeconds: 60
 ---
 # HorizontalPodAutoscaler – Backend
-# Megjegyzés: az uploads-pvc ReadWriteOnce hozzáférési módban van.
-# Ha a storage class támogat ReadWriteMany-t (pl. CephFS), módosítsd a PVC-t
-# backend.yaml-ban, hogy a feltöltött fájlok minden replikában elérhetők legyenek.
-# Az autentikáció és az adatbázis-műveletek RWO esetén is párhuzamosan futnak.
+# A backend immár stateless: a képek az adatbázisban tárolódnak, ezért
+# horizontálisan skálázható, nincs közös volume-korlát.
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -56,7 +54,7 @@ spec:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 50
+          averageUtilization: 40
   behavior:
     scaleUp:
       stabilizationWindowSeconds: 0

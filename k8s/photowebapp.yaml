@@ -107,14 +107,6 @@ spec:
                 secretKeyRef:
                   name: photowebapp-secrets
                   key: SECRET_KEY
-            - name: UPLOAD_FOLDER
-              value: /data/uploads
-          volumeMounts:
-            - name: uploads
-              mountPath: /data/uploads
-      volumes:
-        - name: uploads
-          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

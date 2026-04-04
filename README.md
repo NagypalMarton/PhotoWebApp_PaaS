@@ -21,7 +21,7 @@ Böngésző
 ┌─────────────────────────────┐
 │  Backend  (Flask + Gunicorn) │  :5001
 │  REST API, üzleti logika     │
-│  Fájl tárolás (/data/uploads)│
+│  Képek tárolása az adatbázisban│
 └─────────────┬───────────────┘
               │  TCP :3306 (SQLAlchemy / PyMySQL)
               ▼
@@ -41,17 +41,17 @@ Böngésző
 ### Backend réteg
 
 - **Technológia:** Python 3.12, Flask 3.1, Gunicorn, Flask-SQLAlchemy, PyMySQL, Werkzeug, itsdangerous
-- **Feladat:** REST API biztosítása a frontend számára, autentikáció, fájl feltöltés kezelése
+- **Feladat:** REST API biztosítása a frontend számára, autentikáció, képfeltöltés kezelése
 - **Autentikáció:** Token-alapú (`itsdangerous.URLSafeTimedSerializer`), 24 órás lejárattal, `Authorization: Bearer <token>` fejléccel
-- **Fájl tárolás:** `/data/uploads` könyvtár (OpenShift-kompatibilis: `chgrp -R 0 / chmod -R g+rwx`)
+- **Képtárolás:** a feltöltött kép bináris tartalma és MIME típusa az adatbázisban van eltárolva, ezért a backend stateless és horizontálisan skálázható
 
 ### Adatbázis réteg
 
 - **Technológia:** MySQL 8.0 (`registry.access.redhat.com/rhscl/mysql-80-rhel7`)
 - **Táblák:**
   - `users`: `id`, `username` (max 80 kar., egyedi), `password_hash`
-  - `photos`: `id`, `name` (max 40 kar.), `filename`, `uploaded_at`, `owner_id` (FK → users)
-- **Perzisztencia:** PersistentVolumeClaim (5Gi) biztosítja az adatok megőrzését
+  - `photos`: `id`, `name` (max 40 kar.), `filename`, `content_type`, `image_data`, `uploaded_at`, `owner_id` (FK → users)
+- **Perzisztencia:** az adatok a MySQL adatbázisban maradnak meg
 
 ---
 
@@ -87,7 +87,7 @@ Böngésző
 PhotoWebApp_PaaS/
 ├── backend/
 │   ├── app.py                             # Flask REST API
-│   ├── backend.yaml                       # OpenShift ImageStream-alapú Deployment + PVC + Service
+│   ├── backend.yaml                       # OpenShift ImageStream-alapú Deployment + Service
 │   ├── Dockerfile
 │   └── requirements.txt
 ├── frontend/
@@ -149,8 +149,8 @@ Ez a szakasz egységesen OpenShift és GitHub UI lépésekkel írja le a teljes 
 2. Importáld a [openshift/hpa.yaml](openshift/hpa.yaml) tartalmát.
 3. Nyisd meg: **Observe → Horizontal Pod Autoscalers**.
 4. Ellenőrizd a két HPA objektumot:
-  - `frontend-hpa` (min 1, max 5)
-  - `backend-hpa` (min 1, max 5)
+    - `frontend-hpa` (min 1, max 5)
+    - `backend-hpa` (min 1, max 5)
 
 ### 5) Locust integráció külön appként (UI)
 
@@ -159,10 +159,10 @@ Ez a szakasz egységesen OpenShift és GitHub UI lépésekkel írja le a teljes 
 3. **+Add → Import YAML** alatt importáld a [openshift/locust-openshift.yaml](openshift/locust-openshift.yaml) tartalmát.
 4. **Networking → Routes** alatt nyisd meg a `locust` route-ot.
 5. A Locust UI-ban állítsd be:
-  - Number of users: `30-60`
-  - Spawn rate: `5-10`
-  - Host: `http://backend:5001`
-  - Megjegyzés: a Locust a backend `/api/*` végpontokat terheli.
+    - Number of users: `30-60`
+    - Spawn rate: `5-10`
+    - Host: `http://backend:5001`
+    - Megjegyzés: a Locust a backend `/api/*` végpontokat terheli.
 6. Kattints **Start swarming**.
 
 ### 6) GitHub webhook beállítás UI-ból
@@ -212,7 +212,7 @@ A [locust/locustfile.py](locust/locustfile.py) az alkalmazás fő funkcióit ter
 
 ## Fontos megjegyzések
 
-- A képfájlok `uploads-pvc` volume-on maradnak meg.
-- A MySQL adatok `mysql-pvc` volume-on maradnak meg.
-- Backend oldalon `ReadWriteOnce` esetén a fájlmegosztás több replika között korlátozott lehet.
+- A képek bináris tartalma a `photos` táblában marad meg.
+- A MySQL adatok az adatbázisban maradnak meg.
+- A backend már stateless, ezért a backend HPA több replikára skálázható.
 - A `CHANGE_THIS_*` értékeket minden környezetben cserélni kell.
