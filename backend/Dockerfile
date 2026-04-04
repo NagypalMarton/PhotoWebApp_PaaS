@@ -16,4 +16,4 @@ ENV PYTHONUNBUFFERED=1
 
 EXPOSE 5001
 
-ENTRYPOINT ["gunicorn", "-b", "0.0.0.0:5001", "app:app"]
+ENTRYPOINT ["sh", "-c", "python /app/migrate_photo_schema.py && exec gunicorn -b 0.0.0.0:5001 app:app"]
