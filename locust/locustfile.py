@@ -1,5 +1,6 @@
 """Locust terhelésteszt a backend REST API végpontjaihoz."""
 
+import base64
 import io
 import random
 import string
@@ -54,6 +55,16 @@ class PhotoAlbumUser(HttpUser):
         # Egyszeru, validszeru JPEG fejléc + random adat terhelesteszt célra.
         body = b"\xff\xd8\xff\xe0" + b"JFIF" + b"\x00" * 16 + bytes(random.getrandbits(8) for _ in range(1024)) + b"\xff\xd9"
         return io.BytesIO(body)
+
+    def _upload_payload(self) -> dict[str, str]:
+        filename = "test.jpg"
+        image_bytes = self._jpeg().read()
+        return {
+            "name": self._random_name(),
+            "filename": filename,
+            "content_type": "image/jpeg",
+            "image_data_base64": base64.b64encode(image_bytes).decode("ascii"),
+        }
 
     def _random_name(self) -> str:
         name_length = random.randint(1, 40)
@@ -115,9 +126,8 @@ class PhotoAlbumUser(HttpUser):
             return
         resp = self.client.post(
             "/api/photos",
-            files={"photo": ("test.jpg", self._jpeg(), "image/jpeg")},
-            data={"name": self._random_name()},
-            headers=self._auth_headers(),
+            json=self._upload_payload(),
+            headers={**self._auth_headers(), "Content-Type": "application/json"},
             name="/api/photos [POST]",
         )
         if resp.status_code == 201:

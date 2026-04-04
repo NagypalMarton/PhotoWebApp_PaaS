@@ -1,3 +1,4 @@
+import base64
 import mimetypes
 import time
 from io import BytesIO
@@ -10,6 +11,7 @@ from flask_sqlalchemy import SQLAlchemy
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
+from werkzeug.exceptions import HTTPException
 from sqlalchemy import text
 
 from config import Config
@@ -169,20 +171,39 @@ def list_photos():
 @app.route("/api/photos", methods=["POST"])
 @auth_required
 def upload_photo():
-    name = (request.form.get("name") or "").strip()
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or request.form.get("name") or "").strip()
+    filename = (data.get("filename") or "").strip()
+    content_type = (data.get("content_type") or "").strip()
+    image_data_base64 = (data.get("image_data_base64") or "").strip()
     file = request.files.get("photo")
 
     if not name or len(name) > MAX_PHOTO_NAME_LENGTH:
         return jsonify({"error": ERROR_MESSAGES["photo_name_invalid"]}), 400
-    if not file or file.filename == "":
-        return jsonify({"error": ERROR_MESSAGES["photo_file_required"]}), 400
-    if not is_allowed_file(file.filename):
-        return jsonify({"error": ERROR_MESSAGES["photo_format_unsupported"]}), 400
+    if image_data_base64:
+        try:
+            image_data = base64.b64decode(image_data_base64, validate=True)
+        except (ValueError, TypeError):
+            return jsonify({"error": ERROR_MESSAGES["photo_format_unsupported"]}), 400
 
-    safe_name = secure_filename(file.filename)
-    unique_filename = f"{uuid4().hex}_{safe_name}"
-    image_data = file.read()
-    content_type = detect_content_type(safe_name, file.mimetype)
+        if not filename:
+            return jsonify({"error": ERROR_MESSAGES["photo_file_required"]}), 400
+        if not is_allowed_file(filename):
+            return jsonify({"error": ERROR_MESSAGES["photo_format_unsupported"]}), 400
+
+        safe_name = secure_filename(filename)
+        unique_filename = f"{uuid4().hex}_{safe_name}"
+        content_type = content_type or detect_content_type(safe_name)
+    else:
+        if not file or file.filename == "":
+            return jsonify({"error": ERROR_MESSAGES["photo_file_required"]}), 400
+        if not is_allowed_file(file.filename):
+            return jsonify({"error": ERROR_MESSAGES["photo_format_unsupported"]}), 400
+
+        safe_name = secure_filename(file.filename)
+        unique_filename = f"{uuid4().hex}_{safe_name}"
+        image_data = file.read()
+        content_type = detect_content_type(safe_name, file.mimetype)
 
     photo = Photo(
         name=name,
@@ -286,6 +307,20 @@ def ensure_photo_blob_columns() -> None:
 
 
 init_db_with_retry()
+
+
+@app.errorhandler(HTTPException)
+def handle_http_exception(exc: HTTPException):
+    response = jsonify({"error": exc.description})
+    response.status_code = exc.code or 500
+    return response
+
+
+@app.errorhandler(Exception)
+def handle_unexpected_exception(exc: Exception):
+    response = jsonify({"error": str(exc)})
+    response.status_code = 500
+    return response
 
 
 if __name__ == "__main__":
