@@ -157,19 +157,19 @@ def list_photos():
     sort_column = Photo.name if sort == "name" else Photo.uploaded_at
     order_func = getattr(sort_column, order)
     query = (
-        db.session.query(Photo, User.username)
+        db.session.query(Photo.id, Photo.name, Photo.uploaded_at, User.username)
         .join(User, Photo.owner_id == User.id)
         .order_by(order_func())
     )
 
     photos = [
         {
-            "id": photo.id,
-            "name": photo.name,
-            "uploaded_at": photo.uploaded_at.strftime("%Y-%m-%d %H:%M"),
+            "id": photo_id,
+            "name": name,
+            "uploaded_at": uploaded_at.strftime("%Y-%m-%d %H:%M"),
             "uploaded_by": username,
         }
-        for photo, username in query.all()
+        for photo_id, name, uploaded_at, username in query.all()
     ]
     return jsonify({"photos": photos})
 

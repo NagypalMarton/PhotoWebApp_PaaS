@@ -2,9 +2,9 @@ import base64
 import os
 
 import requests
-from flask import Flask, Response, jsonify, request, session
+from flask import Flask, Response, flash, redirect, render_template, request, session, url_for
 
-from constants import ERROR_MESSAGES, SUCCESS_MESSAGES
+from constants import ERROR_MESSAGES, SUCCESS_MESSAGES, FLASH_CATEGORIES
 
 
 app = Flask(__name__)
@@ -32,29 +32,10 @@ def backend_error_message(response, default_message: str) -> str:
                 return error_message
     except ValueError:
         pass
-
-    response_text = (response.text or "").strip()
-    if response_text and not response_text.startswith("<"):
-        return response_text
-
     return default_message
 
 
-def request_data() -> dict:
-    if not request.is_json:
-        return {}
-    return request.get_json(silent=True) or {}
-
-
-
-def json_response(payload: dict, status_code: int = 200):
-    response = jsonify(payload)
-    response.status_code = status_code
-    return response
-
-
 def is_allowed_file(filename: str) -> bool:
-    """Check if file extension is allowed."""
     allowed_extensions = {"png", "jpg", "jpeg", "gif", "webp"}
     return "." in filename and filename.rsplit(".", 1)[1].lower() in allowed_extensions
 
@@ -65,20 +46,18 @@ def index():
     order = request.args.get("order", "desc")
     try:
         response = requests.get(backend(f"/api/photos?sort={sort}&order={order}"), timeout=10)
-        if not response.ok:
-            return json_response({"error": backend_error_message(response, "A fotók listája nem kérhető le.")}, response.status_code)
-        photos = response.json().get("photos", [])
+        photos = response.json().get("photos", []) if response.ok else []
     except requests.RequestException:
-        return json_response({"error": ERROR_MESSAGES["backend_unavailable"]}, 503)
+        photos = []
+        flash(ERROR_MESSAGES["backend_unavailable"], FLASH_CATEGORIES["error"])
 
-    return json_response(
-        {
-            "photos": photos,
-            "sort": sort,
-            "order": order,
-            "logged_in": bool(session.get("token")),
-            "username": session.get("username"),
-        }
+    return render_template(
+        "index.html",
+        photos=photos,
+        sort=sort,
+        order=order,
+        logged_in=bool(session.get("token")),
+        username=session.get("username"),
     )
 
 
@@ -87,12 +66,15 @@ def photo_view(photo_id: int):
     try:
         response = requests.get(backend(f"/api/photos/{photo_id}"), timeout=10)
         if not response.ok:
-            return json_response({"error": backend_error_message(response, "A kép nem található.")}, response.status_code)
+            flash(backend_error_message(response, "A kép nem található."), FLASH_CATEGORIES["warning"])
+            return redirect(url_for("index"))
         photo = response.json()
     except requests.RequestException:
-        return json_response({"error": ERROR_MESSAGES["backend_unavailable"]}, 503)
+        flash(ERROR_MESSAGES["backend_unavailable"], FLASH_CATEGORIES["error"])
+        return redirect(url_for("index"))
 
-    return json_response(photo)
+    image_url = url_for("photo_image_proxy", photo_id=photo_id)
+    return render_template("photo.html", photo=photo, image_url=image_url)
 
 
 @app.route("/photo/<int:photo_id>/image")
@@ -100,11 +82,15 @@ def photo_image_proxy(photo_id: int):
     try:
         response = requests.get(backend(f"/api/photos/{photo_id}/image"), timeout=20)
     except requests.RequestException:
-        return json_response({"error": ERROR_MESSAGES["backend_unavailable"]}, 503)
+        flash(ERROR_MESSAGES["backend_unavailable"], FLASH_CATEGORIES["error"])
+        return redirect(url_for("photo_view", photo_id=photo_id))
 
     if not response.ok:
-        default_message = "A kép nem található." if response.status_code == 404 else "A kép betöltése sikertelen."
-        return json_response({"error": backend_error_message(response, default_message)}, response.status_code)
+        if response.status_code == 404:
+            flash(backend_error_message(response, "A kép nem található."), FLASH_CATEGORIES["warning"])
+        else:
+            flash(backend_error_message(response, "A kép betöltése sikertelen."), FLASH_CATEGORIES["danger"])
+        return redirect(url_for("photo_view", photo_id=photo_id))
 
     return Response(
         response.content,
@@ -116,33 +102,26 @@ def photo_image_proxy(photo_id: int):
 @app.route("/upload", methods=["POST"])
 def upload():
     if not session.get("token"):
-        return json_response({"error": ERROR_MESSAGES["auth_required"]}, 401)
+        flash(ERROR_MESSAGES["auth_required"], FLASH_CATEGORIES["error"])
+        return redirect(url_for("index"))
 
-    data = request_data()
-    name = (data.get("name") or "").strip()
-    filename = (data.get("filename") or "").strip()
-    content_type = (data.get("content_type") or "").strip()
-    image_data_base64 = (data.get("image_data_base64") or "").strip()
+    name = request.form.get("name", "").strip()
     file = request.files.get("photo")
 
     if not name:
-        return json_response({"error": ERROR_MESSAGES["photo_name_required"]}, 400)
+        flash(ERROR_MESSAGES["photo_name_required"], FLASH_CATEGORIES["error"])
+        return redirect(url_for("index"))
+    if not file or file.filename == "":
+        flash(ERROR_MESSAGES["photo_file_required"], FLASH_CATEGORIES["error"])
+        return redirect(url_for("index"))
+    if not is_allowed_file(file.filename):
+        flash(ERROR_MESSAGES["photo_format_unsupported"], FLASH_CATEGORIES["error"])
+        return redirect(url_for("index"))
 
-    if image_data_base64:
-        if not filename:
-            return json_response({"error": ERROR_MESSAGES["photo_file_required"]}, 400)
-        if not is_allowed_file(filename):
-            return json_response({"error": ERROR_MESSAGES["photo_format_unsupported"]}, 400)
-    else:
-        if not file or file.filename == "":
-            return json_response({"error": ERROR_MESSAGES["photo_file_required"]}, 400)
-        if not is_allowed_file(file.filename):
-            return json_response({"error": ERROR_MESSAGES["photo_format_unsupported"]}, 400)
-
-        filename = file.filename
-        content_type = file.mimetype or "application/octet-stream"
-        image_data = file.read()
-        image_data_base64 = base64.b64encode(image_data).decode("ascii")
+    filename = file.filename
+    content_type = file.mimetype or "application/octet-stream"
+    image_data = file.read()
+    image_data_base64 = base64.b64encode(image_data).decode("ascii")
 
     try:
         response = requests.post(
@@ -158,43 +137,39 @@ def upload():
         )
 
         if response.ok:
-            return json_response({"message": SUCCESS_MESSAGES["upload"], "id": response.json().get("id")}, 201)
-
-        error_message = backend_error_message(response, "Hiba történt a feltöltés közben.")
-        return json_response({"error": error_message}, response.status_code)
+            flash(SUCCESS_MESSAGES["upload"], FLASH_CATEGORIES["success"])
+        else:
+            flash(backend_error_message(response, "Hiba történt a feltöltés közben."), FLASH_CATEGORIES["error"])
     except requests.RequestException:
-        return json_response({"error": ERROR_MESSAGES["backend_unavailable"]}, 503)
+        flash(ERROR_MESSAGES["backend_unavailable"], FLASH_CATEGORIES["error"])
+
+    return redirect(url_for("index"))
 
 
 @app.route("/delete/<int:photo_id>", methods=["POST"])
 def delete(photo_id: int):
     if not session.get("token"):
-        return json_response({"error": ERROR_MESSAGES["auth_required"]}, 401)
+        flash(ERROR_MESSAGES["auth_required"], FLASH_CATEGORIES["error"])
+        return redirect(url_for("index"))
 
-    token = session.get("token")
-    headers = {"Authorization": f"Bearer {token}"}
-    
+    headers = {"Authorization": f"Bearer {session.get('token')}"}
     try:
         response = requests.delete(backend(f"/api/photos/{photo_id}"), headers=headers, timeout=10)
-        
         if response.ok:
-            return json_response({"message": SUCCESS_MESSAGES["delete"]})
-
-        error_message = backend_error_message(response, "Hiba történt a törlés közben.")
-        return json_response({"error": error_message}, response.status_code)
+            flash(SUCCESS_MESSAGES["delete"], FLASH_CATEGORIES["success"])
+        else:
+            flash(backend_error_message(response, "Hiba történt a törlés közben."), FLASH_CATEGORIES["error"])
     except requests.RequestException:
-        return json_response({"error": ERROR_MESSAGES["backend_unavailable"]}, 503)
+        flash(ERROR_MESSAGES["backend_unavailable"], FLASH_CATEGORIES["error"])
+
+    return redirect(url_for("index"))
 
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
-    if request.method == "GET":
-        return json_response({"mode": "register"})
-
     if request.method == "POST":
-        data = request_data()
-        username = (data.get("username") or "").strip()
-        password = data.get("password") or ""
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
 
         try:
             response = requests.post(
@@ -203,22 +178,20 @@ def register():
                 timeout=10,
             )
             if response.status_code == 201:
-                return json_response({"message": SUCCESS_MESSAGES["registration"]}, 201)
-
-            return json_response({"error": backend_error_message(response, "Regisztráció sikertelen.")}, response.status_code)
+                flash(SUCCESS_MESSAGES["registration"], FLASH_CATEGORIES["success"])
+                return redirect(url_for("login"))
+            flash(backend_error_message(response, "Regisztráció sikertelen."), FLASH_CATEGORIES["error"])
         except requests.RequestException:
-            return json_response({"error": ERROR_MESSAGES["backend_unavailable"]}, 503)
+            flash(ERROR_MESSAGES["backend_unavailable"], FLASH_CATEGORIES["error"])
+
+    return render_template("auth.html", mode="register")
 
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    if request.method == "GET":
-        return json_response({"mode": "login"})
-
     if request.method == "POST":
-        data = request_data()
-        username = (data.get("username") or "").strip()
-        password = data.get("password") or ""
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
 
         try:
             response = requests.post(
@@ -230,14 +203,17 @@ def login():
                 body = response.json()
                 session["token"] = body["token"]
                 session["username"] = body["username"]
-                return json_response({"message": SUCCESS_MESSAGES["login"], "username": body["username"]})
-
-            return json_response({"error": backend_error_message(response, "Bejelentkezés sikertelen.")}, response.status_code)
+                flash(SUCCESS_MESSAGES["login"], FLASH_CATEGORIES["success"])
+                return redirect(url_for("index"))
+            flash(backend_error_message(response, "Bejelentkezés sikertelen."), FLASH_CATEGORIES["error"])
         except requests.RequestException:
-            return json_response({"error": ERROR_MESSAGES["backend_unavailable"]}, 503)
+            flash(ERROR_MESSAGES["backend_unavailable"], FLASH_CATEGORIES["error"])
+
+    return render_template("auth.html", mode="login")
 
 
-@app.route("/logout", methods=["GET", "POST"])
+@app.route("/logout")
 def logout():
     session.clear()
-    return json_response({"message": SUCCESS_MESSAGES["logout"]})
+    flash(SUCCESS_MESSAGES["logout"], FLASH_CATEGORIES["info"])
+    return redirect(url_for("index"))
