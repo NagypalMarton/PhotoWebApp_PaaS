@@ -14,8 +14,15 @@ A terheléspróba lefedte az alkalmazás fő funkcióit is. A Locust szkript el�
 
 ## A mérés menete
 
-A mérés menete a gyakorlatban úgy nézett ki, hogy először rögzítettem a kiinduló állapotot az `oc get hpa` és az `oc get deploy frontend backend` parancsokkal. Ezután elindítottam a Locust terhelést a webes felületen. A terhelés futása közben ismét ellenőriztem a HPA állapotát és a Deploymentek replika számát, valamint az OpenShift felületén az Observe -> Horizontal Pod Autoscalers nézetet is figyeltem. Miután leállítottam a terhelést, megint megnéztem a Deploymentek állapotát, hogy látható legyen a visszaskálázódás is.
+A mérés menete a gyakorlatban úgy nézett ki, hogy először ellenőriztem a kiinduló állapotot a Podok számát és kihasználtságát a Workloads -> Deployments nézetben. Ezután elindítottam a Locust terhelést a webes felületen. A terhelés futása közben ismét ellenőriztem a HPA állapotát és a Deploymentek replika számát, valamint az OpenShift felületén az Observe -> Horizontal Pod Autoscalers nézetet is figyeltem. Miután leállítottam a terhelést, megint megnéztem a Deploymentek állapotát, hogy látható legyen a visszaskálázódás is.
 
 ## A dokumentálandó bizonyítékok
 
-A jegyzőkönyvben érdemes mellékelni a Locust statisztika oldalának képernyőképét, mert azon látszik a kérésarány, a válaszidő és az esetleges hibaarány is. Ugyanígy fontos a HPA nézetről készült kép terhelés alatt, valamint a Deploymentek replika számának dokumentálása terhelés közben és terhelés után. Ezek mellett a `oc get hpa` és `oc get deploy frontend backend` parancsok kimenete is hasznos bizonyíték, mert ezek pontosan megmutatják, hogyan változott a rendszer állapota időben.
+A jegyzőkönyvben a szöveges összefoglaló alatt helyezem el a méréshez tartozó képeket. Ide kerül a Locust statisztika oldala, mert azon látszik a kérésarány, a válaszidő és az esetleges hibaarány is. Ugyanitt jelenik meg a HPA nézetről készült kép terhelés alatt, valamint a Deploymentek replika számát bemutató képernyőkép terhelés közben és terhelés után. Ezek a képek együttesen szolgálnak bizonyítékul arra, hogy a rendszer valóban képes volt automatikusan felskálázódni a megnövekedett terhelésre, majd vissza is tudott skálázódni, amikor a terhelés csökkent.
+![Total requests/second](./img/locust-stats_total_requests_per_second.png)
+
+A fenti grafikonon látszik, hogy a terhelés felfutása után a rendszer stabilan képes volt kéréseket kiszolgálni, miközben a hibák száma végig alacsony maradt. A válaszidő görbéken induláskor megfigyelhető egy átmeneti tüske, majd a rendszer beáll egy egyenletesebb működésre. Ez arra utal, hogy a szolgáltatás terhelés alatt is működőképes maradt, és nem omlott össze a megnövelt felhasználószám mellett.
+
+![Locust current radio - kérések eloszlása](./img/locust-current_radio.png)
+
+Ez a kimutatás azt mutatja, hogy a terhelés nem egyetlen végpontra koncentrálódott, hanem több művelet között oszlott meg. Jól látható, hogy a feltöltés és a megtekintés nagyobb arányban szerepel, de a törlés, újrabejelentkezés és a különböző listázási műveletek is jelen vannak. Emiatt a mérés az alkalmazás fő funkcióit valós felhasználási mintához közelítő módon terhelte.
