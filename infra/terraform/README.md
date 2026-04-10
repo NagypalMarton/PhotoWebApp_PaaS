@@ -35,3 +35,10 @@ terraform apply
 ## GitHub Actions usage
 
 The workflow `.github/workflows/iac-terraform-deploy.yml` runs Terraform automatically after image build and push.
+
+The workflow uses Terraform Cloud remote state (with locking), so these repository settings are required:
+
+- Secret: `TF_API_TOKEN`
+- Variable: `TF_ORGANIZATION`
+- Variable: `TF_WORKSPACE` (optional, default: `photowebapp-openshift`)
+- Variable: `DEPLOY_ROLLOUT_TIMEOUT` (optional, default: `180s`)

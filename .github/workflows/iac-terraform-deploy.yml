@@ -37,6 +37,7 @@ jobs:
             OPENSHIFT_TOKEN
             OPENSHIFT_CA_CERT
             DOCKERHUB_USERNAME
+            TF_API_TOKEN
             MYSQL_PASSWORD
             MYSQL_ROOT_PASSWORD
             BACKEND_SECRET_KEY
@@ -54,6 +55,7 @@ jobs:
           OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
           OPENSHIFT_CA_CERT: ${{ secrets.OPENSHIFT_CA_CERT }}
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
           MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
           MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
           BACKEND_SECRET_KEY: ${{ secrets.BACKEND_SECRET_KEY }}
@@ -83,12 +85,21 @@ jobs:
       - name: Terraform init
         working-directory: infra/terraform
         shell: bash
-        run: terraform init
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+          TF_ORGANIZATION: ${{ vars.TF_ORGANIZATION }}
+          TF_WORKSPACE: ${{ vars.TF_WORKSPACE || 'photowebapp-openshift' }}
+        run: |
+          terraform init \
+            -input=false \
+            -backend-config="organization=${TF_ORGANIZATION}" \
+            -backend-config="workspaces.name=${TF_WORKSPACE}"
 
       - name: Terraform apply
         working-directory: infra/terraform
         shell: bash
         env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
           TF_VAR_openshift_server: ${{ secrets.OPENSHIFT_SERVER }}
           TF_VAR_openshift_token: ${{ secrets.OPENSHIFT_TOKEN }}
           TF_VAR_openshift_ca_cert: ${{ secrets.OPENSHIFT_CA_CERT }}
@@ -115,25 +126,52 @@ jobs:
           OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
           OPENSHIFT_CA_CERT: ${{ secrets.OPENSHIFT_CA_CERT }}
           OPENSHIFT_NAMESPACE: ${{ vars.OPENSHIFT_NAMESPACE || 'photowebapp' }}
+          ROLLOUT_TIMEOUT: ${{ vars.DEPLOY_ROLLOUT_TIMEOUT || '180s' }}
         run: |
           set -euo pipefail
 
           CA_FILE="${RUNNER_TEMP}/openshift-ca.crt"
           printf '%s\n' "${OPENSHIFT_CA_CERT}" > "${CA_FILE}"
 
-          KCMD=(kubectl --server "${OPENSHIFT_SERVER}" --token "${OPENSHIFT_TOKEN}" --certificate-authority "${CA_FILE}" -n "${OPENSHIFT_NAMESPACE}")
+          KUBECONFIG_FILE="${RUNNER_TEMP}/kubeconfig"
+          cat > "${KUBECONFIG_FILE}" <<EOF
+          apiVersion: v1
+          kind: Config
+          clusters:
+            - name: target
+              cluster:
+                server: ${OPENSHIFT_SERVER}
+                certificate-authority: ${CA_FILE}
+          users:
+            - name: token-user
+              user:
+                token: ${OPENSHIFT_TOKEN}
+          contexts:
+            - name: target-context
+              context:
+                cluster: target
+                user: token-user
+                namespace: ${OPENSHIFT_NAMESPACE}
+          current-context: target-context
+          EOF
+
+          chmod 600 "${KUBECONFIG_FILE}"
+
+          KCMD=(kubectl --kubeconfig "${KUBECONFIG_FILE}")
+
+          echo "Using rollout timeout: ${ROLLOUT_TIMEOUT}"
 
           echo "Checking deployments and services..."
-          "${KCMD[@]}" get deployment backend frontend mysql
-          "${KCMD[@]}" get service backend frontend mysql
+          "${KCMD[@]}" -n "${OPENSHIFT_NAMESPACE}" get deployment backend frontend mysql
+          "${KCMD[@]}" -n "${OPENSHIFT_NAMESPACE}" get service backend frontend mysql
 
           echo "Waiting for rollout completion..."
-          "${KCMD[@]}" rollout status deployment/mysql --timeout=180s
-          "${KCMD[@]}" rollout status deployment/backend --timeout=180s
-          "${KCMD[@]}" rollout status deployment/frontend --timeout=180s
+          "${KCMD[@]}" -n "${OPENSHIFT_NAMESPACE}" rollout status deployment/mysql --timeout="${ROLLOUT_TIMEOUT}"
+          "${KCMD[@]}" -n "${OPENSHIFT_NAMESPACE}" rollout status deployment/backend --timeout="${ROLLOUT_TIMEOUT}"
+          "${KCMD[@]}" -n "${OPENSHIFT_NAMESPACE}" rollout status deployment/frontend --timeout="${ROLLOUT_TIMEOUT}"
 
           echo "Checking PVC state..."
-          PVC_PHASE=$("${KCMD[@]}" get pvc mysql-pvc -o jsonpath='{.status.phase}')
+          PVC_PHASE=$("${KCMD[@]}" -n "${OPENSHIFT_NAMESPACE}" get pvc mysql-pvc -o jsonpath='{.status.phase}')
           echo "mysql-pvc phase: ${PVC_PHASE}"
           if [ "${PVC_PHASE}" != "Bound" ]; then
             echo "mysql-pvc is not Bound" >&2
@@ -141,14 +179,14 @@ jobs:
           fi
 
           echo "Checking HPA objects (optional)..."
-          if "${KCMD[@]}" get hpa frontend-hpa backend-hpa >/dev/null 2>&1; then
-            "${KCMD[@]}" get hpa frontend-hpa backend-hpa
+          if "${KCMD[@]}" -n "${OPENSHIFT_NAMESPACE}" get hpa frontend-hpa backend-hpa >/dev/null 2>&1; then
+            "${KCMD[@]}" -n "${OPENSHIFT_NAMESPACE}" get hpa frontend-hpa backend-hpa
           else
             echo "HPA resources are not present (possibly disabled via Terraform variable)."
           fi
 
           echo "Checking frontend route..."
-          FRONTEND_HOST=$("${KCMD[@]}" get route frontend -o jsonpath='{.spec.host}')
+          FRONTEND_HOST=$("${KCMD[@]}" -n "${OPENSHIFT_NAMESPACE}" get route frontend -o jsonpath='{.spec.host}')
           if [ -z "${FRONTEND_HOST}" ]; then
             echo "Frontend route host is empty" >&2
             exit 1

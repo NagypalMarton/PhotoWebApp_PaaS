@@ -1,13 +1,15 @@
 terraform {
   required_version = ">= 1.6.0"
 
+  backend "remote" {}
+
   required_providers {
     kubernetes = {
       source  = "hashicorp/kubernetes"
       version = "~> 2.31"
     }
     kubectl = {
-      source  = "gavinbunney/kubectl"
+      source  = "alekc/kubectl"
       version = "~> 1.14"
     }
   }
