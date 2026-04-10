@@ -4,6 +4,27 @@
 
 Az alkalmazás **OpenShift PaaS** platformon fut (OKD). Az image-eket az OpenShift maga buildeli közvetlenül a GitHub repóból (OpenShift BuildConfig).
 
+## IaC (Terraform) telepítés OpenShiftre
+
+A projekt tartalmaz egy teljes Terraform alapú OpenShift deploy megoldást is, amely a következőket kezeli deklaratívan:
+
+- Namespace
+- Secret
+- MySQL (PVC + Deployment + Service)
+- Backend és frontend (Deployment + Service)
+- OpenShift Route
+- NetworkPolicy szabályok
+- Opcionális HPA (backend + frontend)
+
+Elérési út: [infra/terraform/](infra/terraform/)
+
+Automatikus deploy workflow:
+
+- [iac-terraform-deploy.yml](.github/workflows/iac-terraform-deploy.yml)
+- A Docker image build/push után automatikusan futtat `terraform apply` lépést.
+
+A TASK4 részletes dokumentáció: [Documentations/TASK4 - IaC/terraform_openshift_iac_report.md](Documentations/TASK4%20-%20IaC/terraform_openshift_iac_report.md)
+
 ---
 
 ## Architektúra – Rétegek és kapcsolatok

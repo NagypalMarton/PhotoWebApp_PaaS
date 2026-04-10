@@ -1,0 +1,164 @@
+name: Deploy to OpenShift via Terraform
+
+on:
+  workflow_run:
+    workflows:
+      - Build and Push Docker Hub Images
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Docker image tag to deploy (default: short SHA)"
+        required: false
+        type: string
+
+env:
+  TF_IN_AUTOMATION: true
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Validate required secrets
+        shell: bash
+        run: |
+          required=(
+            OPENSHIFT_SERVER
+            OPENSHIFT_TOKEN
+            OPENSHIFT_CA_CERT
+            DOCKERHUB_USERNAME
+            MYSQL_PASSWORD
+            MYSQL_ROOT_PASSWORD
+            BACKEND_SECRET_KEY
+            FRONTEND_SECRET_KEY
+          )
+
+          for key in "${required[@]}"; do
+            if [ -z "${!key}" ]; then
+              echo "Missing repository secret: ${key}" >&2
+              exit 1
+            fi
+          done
+        env:
+          OPENSHIFT_SERVER: ${{ secrets.OPENSHIFT_SERVER }}
+          OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
+          OPENSHIFT_CA_CERT: ${{ secrets.OPENSHIFT_CA_CERT }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+          MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
+          BACKEND_SECRET_KEY: ${{ secrets.BACKEND_SECRET_KEY }}
+          FRONTEND_SECRET_KEY: ${{ secrets.FRONTEND_SECRET_KEY }}
+
+      - name: Set deployment tag
+        id: tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            SOURCE_SHA="${{ github.event.workflow_run.head_sha }}"
+          else
+            SOURCE_SHA="${GITHUB_SHA}"
+          fi
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.image_tag }}" ]; then
+            echo "value=${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${SOURCE_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.5
+
+      - name: Terraform init
+        working-directory: infra/terraform
+        shell: bash
+        run: terraform init
+
+      - name: Terraform apply
+        working-directory: infra/terraform
+        shell: bash
+        env:
+          TF_VAR_openshift_server: ${{ secrets.OPENSHIFT_SERVER }}
+          TF_VAR_openshift_token: ${{ secrets.OPENSHIFT_TOKEN }}
+          TF_VAR_openshift_ca_cert: ${{ secrets.OPENSHIFT_CA_CERT }}
+          TF_VAR_namespace: ${{ vars.OPENSHIFT_NAMESPACE || 'photowebapp' }}
+          TF_VAR_mysql_database: photowebapp
+          TF_VAR_mysql_user: photouser
+          TF_VAR_mysql_password: ${{ secrets.MYSQL_PASSWORD }}
+          TF_VAR_mysql_root_password: ${{ secrets.MYSQL_ROOT_PASSWORD }}
+          TF_VAR_backend_secret_key: ${{ secrets.BACKEND_SECRET_KEY }}
+          TF_VAR_frontend_secret_key: ${{ secrets.FRONTEND_SECRET_KEY }}
+          TF_VAR_backend_image: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/photowebapp-backend:${{ steps.tag.outputs.value }}
+          TF_VAR_frontend_image: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/photowebapp-frontend:${{ steps.tag.outputs.value }}
+        run: terraform apply -auto-approve
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.29.4
+
+      - name: Verify OpenShift resources
+        shell: bash
+        env:
+          OPENSHIFT_SERVER: ${{ secrets.OPENSHIFT_SERVER }}
+          OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
+          OPENSHIFT_CA_CERT: ${{ secrets.OPENSHIFT_CA_CERT }}
+          OPENSHIFT_NAMESPACE: ${{ vars.OPENSHIFT_NAMESPACE || 'photowebapp' }}
+        run: |
+          set -euo pipefail
+
+          CA_FILE="${RUNNER_TEMP}/openshift-ca.crt"
+          printf '%s\n' "${OPENSHIFT_CA_CERT}" > "${CA_FILE}"
+
+          KCMD=(kubectl --server "${OPENSHIFT_SERVER}" --token "${OPENSHIFT_TOKEN}" --certificate-authority "${CA_FILE}" -n "${OPENSHIFT_NAMESPACE}")
+
+          echo "Checking deployments and services..."
+          "${KCMD[@]}" get deployment backend frontend mysql
+          "${KCMD[@]}" get service backend frontend mysql
+
+          echo "Waiting for rollout completion..."
+          "${KCMD[@]}" rollout status deployment/mysql --timeout=180s
+          "${KCMD[@]}" rollout status deployment/backend --timeout=180s
+          "${KCMD[@]}" rollout status deployment/frontend --timeout=180s
+
+          echo "Checking PVC state..."
+          PVC_PHASE=$("${KCMD[@]}" get pvc mysql-pvc -o jsonpath='{.status.phase}')
+          echo "mysql-pvc phase: ${PVC_PHASE}"
+          if [ "${PVC_PHASE}" != "Bound" ]; then
+            echo "mysql-pvc is not Bound" >&2
+            exit 1
+          fi
+
+          echo "Checking HPA objects (optional)..."
+          if "${KCMD[@]}" get hpa frontend-hpa backend-hpa >/dev/null 2>&1; then
+            "${KCMD[@]}" get hpa frontend-hpa backend-hpa
+          else
+            echo "HPA resources are not present (possibly disabled via Terraform variable)."
+          fi
+
+          echo "Checking frontend route..."
+          FRONTEND_HOST=$("${KCMD[@]}" get route frontend -o jsonpath='{.spec.host}')
+          if [ -z "${FRONTEND_HOST}" ]; then
+            echo "Frontend route host is empty" >&2
+            exit 1
+          fi
+
+          echo "Frontend URL: https://${FRONTEND_HOST}"
+
+          {
+            echo "## OpenShift Deploy Verification"
+            echo "- Namespace: ${OPENSHIFT_NAMESPACE}"
+            echo "- Frontend URL: https://${FRONTEND_HOST}"
+            echo "- MySQL PVC: ${PVC_PHASE}"
+          } >> "${GITHUB_STEP_SUMMARY}"

@@ -208,3 +208,10 @@ __marimo__/
 
 # Generated OpenShift manifests with real secrets
 openshift/openshift-all-generated.yaml
+
+# Terraform local artifacts
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log

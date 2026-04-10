@@ -1,0 +1,22 @@
+openshift_server = "https://api.<cluster-domain>:6443"
+openshift_token  = "sha256~replace-me"
+openshift_ca_cert = <<EOF
+-----BEGIN CERTIFICATE-----
+replace-me
+-----END CERTIFICATE-----
+EOF
+
+namespace           = "photowebapp"
+mysql_database      = "photowebapp"
+mysql_user          = "photouser"
+mysql_password      = "replace-me"
+mysql_root_password = "replace-me"
+backend_secret_key  = "replace-me"
+frontend_secret_key = "replace-me"
+
+backend_image  = "docker.io/<dockerhub-user>/photowebapp-backend:latest"
+frontend_image = "docker.io/<dockerhub-user>/photowebapp-frontend:latest"
+mysql_image    = "registry.access.redhat.com/rhscl/mysql-80-rhel7"
+
+mysql_storage_size = "5Gi"
+enable_hpa         = true
