@@ -10,8 +10,9 @@ variable "openshift_token" {
 }
 
 variable "openshift_ca_cert" {
-  description = "OpenShift cluster CA cert in PEM format"
+  description = "OpenShift cluster CA cert in PEM format (optional when using insecure TLS mode)"
   type        = string
+  default     = ""
 }
 
 variable "namespace" {
@@ -45,14 +46,16 @@ variable "mysql_root_password" {
 }
 
 variable "backend_secret_key" {
-  description = "Flask secret key for backend"
+  description = "Flask secret key for backend (optional; random value generated when empty)"
   type        = string
+  default     = ""
   sensitive   = true
 }
 
 variable "frontend_secret_key" {
-  description = "Flask secret key for frontend"
+  description = "Flask secret key for frontend (optional; random value generated when empty)"
   type        = string
+  default     = ""
   sensitive   = true
 }
 

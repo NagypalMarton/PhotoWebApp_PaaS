@@ -18,19 +18,29 @@ terraform {
       source  = "alekc/kubectl"
       version = "~> 1.14"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
   }
+}
+
+locals {
+  use_insecure_tls = trimspace(var.openshift_ca_cert) == ""
 }
 
 provider "kubernetes" {
   host                   = var.openshift_server
   token                  = var.openshift_token
-  cluster_ca_certificate = var.openshift_ca_cert
+  cluster_ca_certificate = local.use_insecure_tls ? null : var.openshift_ca_cert
+  insecure               = local.use_insecure_tls
   load_config_file       = false
 }
 
 provider "kubectl" {
   host                   = var.openshift_server
   token                  = var.openshift_token
-  cluster_ca_certificate = var.openshift_ca_cert
+  cluster_ca_certificate = local.use_insecure_tls ? null : var.openshift_ca_cert
+  insecure               = local.use_insecure_tls
   load_config_file       = false
 }

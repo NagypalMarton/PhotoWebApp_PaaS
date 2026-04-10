@@ -35,13 +35,10 @@ jobs:
           required=(
             OPENSHIFT_SERVER
             OPENSHIFT_TOKEN
-            OPENSHIFT_CA_CERT
             DOCKERHUB_USERNAME
             TF_API_TOKEN
             MYSQL_PASSWORD
             MYSQL_ROOT_PASSWORD
-            BACKEND_SECRET_KEY
-            FRONTEND_SECRET_KEY
           )
 
           for key in "${required[@]}"; do
@@ -53,13 +50,10 @@ jobs:
         env:
           OPENSHIFT_SERVER: ${{ secrets.OPENSHIFT_SERVER }}
           OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
-          OPENSHIFT_CA_CERT: ${{ secrets.OPENSHIFT_CA_CERT }}
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
           MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
           MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
-          BACKEND_SECRET_KEY: ${{ secrets.BACKEND_SECRET_KEY }}
-          FRONTEND_SECRET_KEY: ${{ secrets.FRONTEND_SECRET_KEY }}
 
       - name: Set deployment tag
         id: tag
@@ -102,8 +96,6 @@ jobs:
           TF_VAR_mysql_user: photouser
           TF_VAR_mysql_password: ${{ secrets.MYSQL_PASSWORD }}
           TF_VAR_mysql_root_password: ${{ secrets.MYSQL_ROOT_PASSWORD }}
-          TF_VAR_backend_secret_key: ${{ secrets.BACKEND_SECRET_KEY }}
-          TF_VAR_frontend_secret_key: ${{ secrets.FRONTEND_SECRET_KEY }}
           TF_VAR_backend_image: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/photowebapp-backend:${{ steps.tag.outputs.value }}
           TF_VAR_frontend_image: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/photowebapp-frontend:${{ steps.tag.outputs.value }}
         run: terraform apply -auto-approve
@@ -124,10 +116,16 @@ jobs:
         run: |
           set -euo pipefail
 
-          CA_FILE="${RUNNER_TEMP}/openshift-ca.crt"
-          printf '%s\n' "${OPENSHIFT_CA_CERT}" > "${CA_FILE}"
-
           KUBECONFIG_FILE="${RUNNER_TEMP}/kubeconfig"
+
+          if [ -n "${OPENSHIFT_CA_CERT}" ]; then
+            CA_FILE="${RUNNER_TEMP}/openshift-ca.crt"
+            printf '%s\n' "${OPENSHIFT_CA_CERT}" > "${CA_FILE}"
+            TLS_LINE="certificate-authority: ${CA_FILE}"
+          else
+            TLS_LINE="insecure-skip-tls-verify: true"
+          fi
+
           cat > "${KUBECONFIG_FILE}" <<EOF
           apiVersion: v1
           kind: Config
@@ -135,7 +133,7 @@ jobs:
             - name: target
               cluster:
                 server: ${OPENSHIFT_SERVER}
-                certificate-authority: ${CA_FILE}
+                ${TLS_LINE}
           users:
             - name: token-user
               user:

@@ -3,9 +3,20 @@ locals {
     app = "photowebapp"
   }
 
-  database_url = "mysql+pymysql://${var.mysql_user}:${var.mysql_password}@mysql:3306/${var.mysql_database}"
+  backend_secret_key_effective  = trimspace(var.backend_secret_key) != "" ? var.backend_secret_key : random_password.backend_secret_key.result
+  frontend_secret_key_effective = trimspace(var.frontend_secret_key) != "" ? var.frontend_secret_key : random_password.frontend_secret_key.result
+  database_url                  = "mysql+pymysql://${var.mysql_user}:${var.mysql_password}@mysql:3306/${var.mysql_database}"
 }
 
+resource "random_password" "backend_secret_key" {
+  length  = 48
+  special = false
+}
+
+resource "random_password" "frontend_secret_key" {
+  length  = 48
+  special = false
+}
 resource "kubernetes_namespace_v1" "app" {
   metadata {
     name   = var.namespace
@@ -26,8 +37,8 @@ resource "kubernetes_secret_v1" "app_secrets" {
     MYSQL_USER          = var.mysql_user
     MYSQL_PASSWORD      = var.mysql_password
     MYSQL_ROOT_PASSWORD = var.mysql_root_password
-    SECRET_KEY          = var.backend_secret_key
-    FLASK_SECRET_KEY    = var.frontend_secret_key
+    SECRET_KEY          = local.backend_secret_key_effective
+    FLASK_SECRET_KEY    = local.frontend_secret_key_effective
     DATABASE_URL        = local.database_url
   }
 }
@@ -642,3 +653,5 @@ resource "kubernetes_horizontal_pod_autoscaler_v2" "backend" {
     }
   }
 }
+
+
