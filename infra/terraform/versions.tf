@@ -1,7 +1,13 @@
 terraform {
   required_version = ">= 1.6.0"
 
-  backend "remote" {}
+  cloud {
+    organization = "CloudBased_PhotoApp_PaaS"
+
+    workspaces {
+      name = "photowebapp-openshift"
+    }
+  }
 
   required_providers {
     kubernetes = {

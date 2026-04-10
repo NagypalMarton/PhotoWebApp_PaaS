@@ -87,13 +87,7 @@ jobs:
         shell: bash
         env:
           TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
-          TF_ORGANIZATION: ${{ vars.TF_ORGANIZATION }}
-          TF_WORKSPACE: ${{ vars.TF_WORKSPACE || 'photowebapp-openshift' }}
-        run: |
-          terraform init \
-            -input=false \
-            -backend-config="organization=${TF_ORGANIZATION}" \
-            -backend-config="workspaces.name=${TF_WORKSPACE}"
+        run: terraform init -input=false
 
       - name: Terraform apply
         working-directory: infra/terraform
