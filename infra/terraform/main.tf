@@ -104,6 +104,7 @@ resource "kubernetes_deployment_v1" "mysql" {
 
   spec {
     replicas = 1
+    revision_history_limit = 2
 
     selector {
       match_labels = {
@@ -233,6 +234,7 @@ resource "kubernetes_deployment_v1" "backend" {
 
   spec {
     replicas = 1
+    revision_history_limit = 2
 
     selector {
       match_labels = {
@@ -362,6 +364,7 @@ resource "kubernetes_deployment_v1" "frontend" {
 
   spec {
     replicas = 1
+    revision_history_limit = 2
 
     selector {
       match_labels = {
