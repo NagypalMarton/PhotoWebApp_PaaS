@@ -2,7 +2,7 @@ import base64
 import mimetypes
 import time
 from io import BytesIO
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import wraps
 from uuid import uuid4
 
@@ -239,6 +239,46 @@ def delete_photo(photo_id: int):
     db.session.commit()
 
     return jsonify({"message": SUCCESS_MESSAGES["delete"]})
+
+
+def parse_iso_datetime(value: str):
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+    return parsed
+
+
+@app.route("/api/photos", methods=["DELETE"])
+@auth_required
+def delete_photos_bulk():
+    data = request.get_json(silent=True) or {}
+    name_prefix = (data.get("name_prefix") or "").strip()
+    uploaded_before = (data.get("uploaded_before") or "").strip()
+    uploaded_after = (data.get("uploaded_after") or "").strip()
+
+    query = Photo.query.filter(Photo.owner_id == g.user_id)
+
+    if name_prefix:
+        query = query.filter(Photo.name.like(f"{name_prefix}%"))
+
+    if uploaded_before:
+        try:
+            uploaded_before_dt = parse_iso_datetime(uploaded_before)
+        except ValueError:
+            return jsonify({"error": "uploaded_before must be an ISO 8601 datetime"}), 400
+        query = query.filter(Photo.uploaded_at < uploaded_before_dt)
+
+    if uploaded_after:
+        try:
+            uploaded_after_dt = parse_iso_datetime(uploaded_after)
+        except ValueError:
+            return jsonify({"error": "uploaded_after must be an ISO 8601 datetime"}), 400
+        query = query.filter(Photo.uploaded_at > uploaded_after_dt)
+
+    deleted_count = query.delete(synchronize_session=False)
+    db.session.commit()
+
+    return jsonify({"message": SUCCESS_MESSAGES["bulk_delete"], "deleted": deleted_count})
 
 
 @app.route("/api/photos/<int:photo_id>", methods=["GET"])

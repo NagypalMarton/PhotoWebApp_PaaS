@@ -38,6 +38,7 @@ SUCCESS_MESSAGES = {
     "logout": "Sikeres kijelentkezés.",
     "upload": "Sikeres feltöltés.",
     "delete": "Kép törölve.",
+    "bulk_delete": "Képek törölve.",
 }
 
 # Flash categories
