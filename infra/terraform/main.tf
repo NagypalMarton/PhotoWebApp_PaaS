@@ -24,6 +24,36 @@ resource "kubernetes_namespace_v1" "app" {
   }
 }
 
+resource "kubernetes_service_account_v1" "backend" {
+  metadata {
+    name      = "backend-sa"
+    namespace = kubernetes_namespace_v1.app.metadata[0].name
+    labels = {
+      app = "backend"
+    }
+  }
+}
+
+resource "kubernetes_service_account_v1" "frontend" {
+  metadata {
+    name      = "frontend-sa"
+    namespace = kubernetes_namespace_v1.app.metadata[0].name
+    labels = {
+      app = "frontend"
+    }
+  }
+}
+
+resource "kubernetes_service_account_v1" "mysql" {
+  metadata {
+    name      = "mysql-sa"
+    namespace = kubernetes_namespace_v1.app.metadata[0].name
+    labels = {
+      app = "mysql"
+    }
+  }
+}
+
 resource "kubernetes_secret_v1" "app_secrets" {
   metadata {
     name      = "photowebapp-secrets"
@@ -93,6 +123,9 @@ resource "kubernetes_deployment_v1" "mysql" {
       }
 
       spec {
+        service_account_name            = kubernetes_service_account_v1.mysql.metadata[0].name
+        automount_service_account_token = false
+
         container {
           name  = "mysql"
           image = var.mysql_image
@@ -219,6 +252,9 @@ resource "kubernetes_deployment_v1" "backend" {
       }
 
       spec {
+        service_account_name            = kubernetes_service_account_v1.backend.metadata[0].name
+        automount_service_account_token = false
+
         init_container {
           name  = "wait-for-mysql"
           image = "busybox:1.36"
@@ -345,6 +381,9 @@ resource "kubernetes_deployment_v1" "frontend" {
       }
 
       spec {
+        service_account_name            = kubernetes_service_account_v1.frontend.metadata[0].name
+        automount_service_account_token = false
+
         init_container {
           name  = "wait-for-backend"
           image = "busybox:1.36"

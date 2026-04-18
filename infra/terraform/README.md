@@ -4,6 +4,7 @@ This folder contains Infrastructure-as-Code definitions for deploying the full P
 
 - namespace
 - secrets
+- dedicated service accounts for backend/frontend/mysql
 - persistent MySQL database (PVC + Deployment + Service)
 - backend and frontend deployments with services
 - OpenShift Route for frontend
@@ -42,8 +43,12 @@ Required GitHub repository settings:
 
 - Secret: `TF_API_TOKEN`
 - Variable: `DEPLOY_ROLLOUT_TIMEOUT` (optional, default: `180s`)
+- Secret: `BACKEND_SECRET_KEY` (optional)
+- Secret: `FRONTEND_SECRET_KEY` (optional)
+- Variable: `ENABLE_HPA` (optional, default: `true`)
 
 The organization and workspace are hardcoded in `versions.tf` (`cloud` block):
+
 - Organization: `CloudBased_PhotoApp_PaaS`
 - Workspace: `photowebapp-openshift`
 

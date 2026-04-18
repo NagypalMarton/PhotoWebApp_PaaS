@@ -53,8 +53,13 @@ Szukseges GitHub secrets:
 - DOCKERHUB_USERNAME
 - MYSQL_PASSWORD
 - MYSQL_ROOT_PASSWORD
-- BACKEND_SECRET_KEY
-- FRONTEND_SECRET_KEY
+- BACKEND_SECRET_KEY (opcionalis)
+- FRONTEND_SECRET_KEY (opcionalis)
+
+Tovabbi opcionis GitHub valtozok:
+
+- ENABLE_HPA (alapertelmezett: true)
+- DEPLOY_ROLLOUT_TIMEOUT (alapertelmezett: 180s)
 
 ## Szorgalmi: automatikus skalazodas
 

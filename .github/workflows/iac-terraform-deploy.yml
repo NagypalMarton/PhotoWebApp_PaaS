@@ -4,6 +4,8 @@ on:
   workflow_run:
     workflows:
       - Build and Push Docker Hub Images
+    branches:
+      - main
     types:
       - completed
   workflow_dispatch:
@@ -15,6 +17,10 @@ on:
 
 env:
   TF_IN_AUTOMATION: true
+
+concurrency:
+  group: terraform-openshift-deploy
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -96,6 +102,9 @@ jobs:
           TF_VAR_mysql_user: photouser
           TF_VAR_mysql_password: ${{ secrets.MYSQL_PASSWORD }}
           TF_VAR_mysql_root_password: ${{ secrets.MYSQL_ROOT_PASSWORD }}
+          TF_VAR_backend_secret_key: ${{ secrets.BACKEND_SECRET_KEY || '' }}
+          TF_VAR_frontend_secret_key: ${{ secrets.FRONTEND_SECRET_KEY || '' }}
+          TF_VAR_enable_hpa: ${{ vars.ENABLE_HPA || 'true' }}
           TF_VAR_backend_image: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/photowebapp-backend:${{ steps.tag.outputs.value }}
           TF_VAR_frontend_image: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/photowebapp-frontend:${{ steps.tag.outputs.value }}
         run: terraform apply -auto-approve
