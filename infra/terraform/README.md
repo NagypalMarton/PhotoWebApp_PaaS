@@ -29,6 +29,23 @@ By default `manage_namespace = false`, so Terraform deploys into an existing nam
 
 Set `manage_namespace = true` only if the token has cluster-level permissions to create/manage namespaces.
 
+## OpenShift token permissions
+
+The token used by Terraform must have namespace-scoped write permissions in `var.namespace`.
+
+Minimum required resource permissions include create/update/get/list/watch on:
+
+- serviceaccounts
+- secrets
+- services
+- deployments.apps
+- persistentvolumeclaims
+- networkpolicies.networking.k8s.io
+- horizontalpodautoscalers.autoscaling
+- routes.route.openshift.io
+
+If Terraform fails with `Unauthorized`, the token is valid but does not have enough RBAC rights for one or more resources.
+
 ## Local usage
 
 ```bash

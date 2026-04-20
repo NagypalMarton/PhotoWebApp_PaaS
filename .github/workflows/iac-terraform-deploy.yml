@@ -89,6 +89,87 @@ jobs:
           TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
         run: terraform init -input=false
 
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.29.4
+
+      - name: Preflight OpenShift access and RBAC
+        shell: bash
+        env:
+          OPENSHIFT_SERVER: ${{ secrets.OPENSHIFT_SERVER }}
+          OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
+          OPENSHIFT_CA_CERT: ${{ secrets.OPENSHIFT_CA_CERT }}
+          OPENSHIFT_NAMESPACE: ${{ vars.OPENSHIFT_NAMESPACE || 'photowebapp' }}
+        run: |
+          set -euo pipefail
+
+          KUBECONFIG_FILE="${RUNNER_TEMP}/kubeconfig"
+
+          if [ -n "${OPENSHIFT_CA_CERT}" ]; then
+            CA_FILE="${RUNNER_TEMP}/openshift-ca.crt"
+            printf '%s\n' "${OPENSHIFT_CA_CERT}" > "${CA_FILE}"
+            TLS_LINE="certificate-authority: ${CA_FILE}"
+          else
+            TLS_LINE="insecure-skip-tls-verify: true"
+          fi
+
+          cat > "${KUBECONFIG_FILE}" <<EOF
+          apiVersion: v1
+          kind: Config
+          clusters:
+            - name: target
+              cluster:
+                server: ${OPENSHIFT_SERVER}
+                ${TLS_LINE}
+          users:
+            - name: token-user
+              user:
+                token: ${OPENSHIFT_TOKEN}
+          contexts:
+            - name: target-context
+              context:
+                cluster: target
+                user: token-user
+                namespace: ${OPENSHIFT_NAMESPACE}
+          current-context: target-context
+          EOF
+
+          chmod 600 "${KUBECONFIG_FILE}"
+          KCMD=(kubectl --kubeconfig "${KUBECONFIG_FILE}")
+
+          echo "Verifying token can access namespace ${OPENSHIFT_NAMESPACE}..."
+          if ! "${KCMD[@]}" -n "${OPENSHIFT_NAMESPACE}" auth can-i get pods >/dev/null; then
+            echo "Token cannot access namespace ${OPENSHIFT_NAMESPACE}. Check OPENSHIFT_TOKEN and OPENSHIFT_NAMESPACE." >&2
+            exit 1
+          fi
+
+          required=(
+            "create serviceaccounts"
+            "create secrets"
+            "create services"
+            "create deployments.apps"
+            "create persistentvolumeclaims"
+            "create networkpolicies.networking.k8s.io"
+            "create horizontalpodautoscalers.autoscaling"
+            "create routes.route.openshift.io"
+          )
+
+          missing=0
+          for rule in "${required[@]}"; do
+            verb="${rule%% *}"
+            resource="${rule#* }"
+            if ! "${KCMD[@]}" -n "${OPENSHIFT_NAMESPACE}" auth can-i "${verb}" "${resource}" >/dev/null; then
+              echo "Missing permission: ${verb} ${resource} in namespace ${OPENSHIFT_NAMESPACE}" >&2
+              missing=1
+            fi
+          done
+
+          if [ "${missing}" -ne 0 ]; then
+            echo "OpenShift RBAC preflight failed. Grant namespace role edit/admin (or equivalent custom role), then rerun." >&2
+            exit 1
+          fi
+
       - name: Terraform apply
         working-directory: infra/terraform
         shell: bash
@@ -108,11 +189,6 @@ jobs:
           TF_VAR_backend_image: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/photowebapp-backend:${{ steps.tag.outputs.value }}
           TF_VAR_frontend_image: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/photowebapp-frontend:${{ steps.tag.outputs.value }}
         run: terraform apply -auto-approve
-
-      - name: Install kubectl
-        uses: azure/setup-kubectl@v4
-        with:
-          version: v1.29.4
 
       - name: Verify OpenShift resources
         shell: bash
