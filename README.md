@@ -1,12 +1,27 @@
 # Fényképalbum alkalmazás – Dokumentáció
 
+Ez a projekt egy Flask alapú fényképalbum alkalmazás, amit OpenShiftre és Terraformos IaC megoldásra is fel lehet húzni. A repo célja nem csak az, hogy fusson az app, hanem az is, hogy jól bemutassa a build, deploy, skálázás és terhelésteszt részeket is.
+
+## Rövid áttekintés
+
+Az alkalmazás három fő részből áll:
+
+- frontend: a webes felület és a backend API proxyzása
+- backend: REST API, autentikáció, képfeltöltés és képkezelés
+- MySQL: felhasználók és képek adatainak tárolása
+
+Az OpenShiftes megoldás kétféleképpen van jelen a repo-ban:
+
+- klasszikus YAML alapú deploy manifestekkel
+- Terraform alapú IaC telepítéssel
+
 ## Választott környezet
 
-Az alkalmazás **OpenShift PaaS** platformon fut (OKD). Az image-eket az OpenShift maga buildeli közvetlenül a GitHub repóból (OpenShift BuildConfig).
+Az alkalmazás **OpenShift PaaS** platformon fut (OKD). Az image-ek buildelése a repo workflow-jaival és az OpenShift BuildConfig megoldással is meg van támogatva.
 
 ## IaC (Terraform) telepítés OpenShiftre
 
-A projekt tartalmaz egy teljes Terraform alapú OpenShift deploy megoldást is, amely a következőket kezeli deklaratívan:
+A projekt tartalmaz egy teljes Terraform alapú OpenShift deploy megoldást is, amely deklaratívan kezeli a következőket:
 
 - Namespace
 - Secret
@@ -21,7 +36,9 @@ Elérési út: [infra/terraform/](infra/terraform/)
 Automatikus deploy workflow:
 
 - [iac-terraform-deploy.yml](.github/workflows/iac-terraform-deploy.yml)
-- A Docker image build/push után automatikusan futtat `terraform apply` lépést.
+- A Docker image build/push után automatikusan lefut a Terraform apply lépés.
+
+Külön Terraform leírás: [infra/terraform/README.md](infra/terraform/README.md)
 
 A TASK4 részletes dokumentáció: [Documentations/TASK4 - IaC/terraform_openshift_iac_report.md](Documentations/TASK4%20-%20IaC/terraform_openshift_iac_report.md)
 
@@ -56,7 +73,7 @@ Böngésző
 
 - **Technológia:** Python 3.12, Flask 3.1, Gunicorn
 - **Feladat:** JSON API proxy a backend felé és session/token kezelés
-- **Képmegjelenítés:** Proxy route-on keresztül (`/photo/<id>/image`) adja vissza a képfájlt
+- **Képmegjelenítés:** proxy route-on keresztül adja vissza a képfájlt a backendből
 - **Session kezelés:** A bejelentkezési token szerver oldali Flask session-ban tárolódik
 
 ### Backend réteg
@@ -65,6 +82,7 @@ Böngésző
 - **Feladat:** REST API biztosítása a frontend számára, autentikáció, képfeltöltés kezelése
 - **Autentikáció:** Token-alapú (`itsdangerous.URLSafeTimedSerializer`), 24 órás lejárattal, `Authorization: Bearer <token>` fejléccel
 - **Képtárolás:** a feltöltött kép bináris tartalma és MIME típusa az adatbázisban van eltárolva, ezért a backend stateless és horizontálisan skálázható
+- **Sémafrissítés:** az induláskor futó külön migrációs script gondoskodik a `photos` tábla bővítéséről
 
 ### Adatbázis réteg
 
@@ -83,11 +101,20 @@ Böngésző
 | GET | `/api/health` | – | Állapot ellenőrzés |
 | POST | `/api/register` | – | Regisztráció |
 | POST | `/api/login` | – | Bejelentkezés, tokent ad vissza |
-| GET | `/api/photos?sort=date\|name` | – | Fotók listázása |
+| GET | `/api/photos?sort=date\|name&order=asc\|desc` | – | Fotók listázása |
 | POST | `/api/photos` | ✅ | Fotó feltöltése |
 | GET | `/api/photos/<id>` | – | Fotó metaadatai |
+| DELETE | `/api/photos` | ✅ | Tömeges törlés szűrőkkel |
 | DELETE | `/api/photos/<id>` | ✅ | Fotó törlése (csak saját) |
 | GET | `/api/photos/<id>/image` | – | Képfájl visszaadása |
+
+A tömeges törlésnél ezek a szűrők használhatók:
+
+- `name_prefix`
+- `uploaded_before`
+- `uploaded_after`
+
+Az időpontok ISO 8601 formátumúak.
 
 ---
 
@@ -96,9 +123,38 @@ Böngésző
 - Felhasználókezelés: regisztráció, belépés, kilépés
 - Fényképfeltöltés (csak bejelentkezett felhasználónak)
 - Fényképtörlés (csak bejelentkezett felhasználónak, csak saját kép)
+- Tömeges képtörlés szűréssel az API-n keresztül
 - Minden képhez: név (max. 40 karakter), feltöltési dátum (`ÉÉÉÉ-HH-NN ÓÓ:PP`) és feltöltő felhasználónév
-- Lista név vagy dátum szerinti rendezéssel
+- Lista név vagy dátum szerinti rendezéssel, emelkedő vagy csökkenő sorrendben
 - Listaelemre kattintva a kép részletes megjelenítése (a feltöltő nevével)
+
+---
+
+## Környezeti változók
+
+A projekt több helyen is használ környezeti változókat. A legfontosabbak:
+
+- `DATABASE_URL`: backend adatbázis kapcsolat
+- `SECRET_KEY`: backend token-aláírás
+- `FLASK_SECRET_KEY`: frontend session kulcs
+- `BACKEND_URL`: frontend által használt backend cím
+- `UPLOAD_FOLDER`: feltöltések helye, alapból `/data/uploads`
+- `MAX_PHOTO_SIZE`: maximális fájlméret bájtban
+
+Példaértékek itt vannak: [.env.example](.env.example)
+
+OpenShift/Terraform oldalról ezek a secret és var beállítások számítanak:
+
+- `OPENSHIFT_SERVER`
+- `OPENSHIFT_TOKEN`
+- `OPENSHIFT_CA_CERT`
+- `TF_API_TOKEN`
+- `MYSQL_PASSWORD`
+- `MYSQL_ROOT_PASSWORD`
+- `BACKEND_SECRET_KEY`
+- `FRONTEND_SECRET_KEY`
+- `ENABLE_HPA`
+- `DEPLOY_ROLLOUT_TIMEOUT`
 
 ---
 
@@ -126,7 +182,6 @@ PhotoWebApp_PaaS/
 │   ├── mysql.yaml                         # Secret, PVC, Deployment, Service
 │   └── Dockerfile                         # UBI9-alapú egyedi MySQL image
 ├── openshift/
-│   ├── openshift-all.yaml                 # Teljes stack: app + HPA + Locust
 │   ├── photowebapp-build.yaml             # Backend + frontend ImageStream-ek és BuildConfig-ok
 │   ├── locust-image.yaml                  # Locust ImageStream + BuildConfig
 │   ├── locust-openshift.yaml              # Locust runtime (master/worker, Service, Route)
@@ -134,6 +189,19 @@ PhotoWebApp_PaaS/
 └── k8s/
     └── photowebapp.yaml                   # Lokális Kubernetes manifest (fejlesztéshez)
 ```
+
+---
+
+## Futtatás fejlesztői környezetben
+
+A repo alapján a legegyszerűbb helyi indítási logika ez:
+
+1. indítsd el a MySQL-t
+2. állítsd be a backendhez a `DATABASE_URL` és `SECRET_KEY` változókat
+3. állítsd be a frontendhez a `BACKEND_URL` és `FLASK_SECRET_KEY` változókat
+4. indítsd a backend és frontend Flask appokat külön processzben
+
+Ha a projektben a lokális teszteléshez a Kubernetes manifestet használod, akkor a [k8s/photowebapp.yaml](k8s/photowebapp.yaml) a jó kiindulópont.
 
 ---
 
@@ -155,6 +223,8 @@ Ez a szakasz egységesen OpenShift és GitHub UI lépésekkel írja le a teljes 
 4. Nyisd meg: **Builds → BuildConfigs** és ellenőrizd, hogy a backend/frontend build elindult.
 5. Nyisd meg: **Builds → Builds** és várd meg a sikeres build státuszt.
 
+Megjegyzés: a build manifest a repo GitHub címéről húzza a forrást, és a built image-eket OpenShift ImageStreambe teszi.
+
 ### 3) Adatbázis és alkalmazás deploy
 
 1. **+Add → Import YAML** alatt importáld a [mysql/mysql.yaml](mysql/mysql.yaml) tartalmát.
@@ -164,14 +234,16 @@ Ez a szakasz egységesen OpenShift és GitHub UI lépésekkel írja le a teljes 
 5. **Workloads → Pods** alatt ellenőrizd, hogy `mysql`, `backend`, `frontend` podok `Running` állapotban vannak.
 6. **Networking → Routes** alatt nyisd meg a `frontend` route-ot.
 
+Itt érdemes figyelni arra, hogy a backend induláskor lefuttatja a sémafrissítést is, tehát nem csak sima deploymentről van szó.
+
 ### 4) HPA (automatikus skálázás) bekapcsolása
 
 1. Nyisd meg: **+Add → Import YAML**.
 2. Importáld a [openshift/hpa.yaml](openshift/hpa.yaml) tartalmát.
 3. Nyisd meg: **Observe → Horizontal Pod Autoscalers**.
 4. Ellenőrizd a két HPA objektumot:
-    - `frontend-hpa` (min 1, max 5)
-    - `backend-hpa` (min 1, max 5)
+   - `frontend-hpa` (min 1, max 5)
+   - `backend-hpa` (min 1, max 5)
 
 ### 5) Locust integráció külön appként (UI)
 
@@ -186,7 +258,15 @@ Ez a szakasz egységesen OpenShift és GitHub UI lépésekkel írja le a teljes 
     - Megjegyzés: a Locust a backend `/api/*` végpontokat terheli.
 6. Kattints **Start swarming**.
 
-### 6) GitHub webhook beállítás UI-ból
+### 6) GitHub workflow-k
+
+A repo-ban három fontos GitHub Actions workflow van:
+
+- [dockerhub-publish.yml](.github/workflows/dockerhub-publish.yml): backend és frontend image-ek buildelése és pusholása Docker Hubra
+- [openshift-manifest-render.yml](.github/workflows/openshift-manifest-render.yml): OpenShift manifest generálás workflow_dispatch indítással
+- [iac-terraform-deploy.yml](.github/workflows/iac-terraform-deploy.yml): Terraform alapú OpenShift deploy a build után
+
+### 7) GitHub webhook beállítás UI-ból
 
 #### OpenShift oldalon
 
@@ -204,7 +284,7 @@ Ez a szakasz egységesen OpenShift és GitHub UI lépésekkel írja le a teljes 
 4. Esemény: `Just the push event`.
 5. Mentés után ellenőrizd a zöld státuszt.
 
-### 7) Skálázódás ellenőrzése UI-ban
+### 8) Skálázódás ellenőrzése UI-ban
 
 1. Locust terhelés alatt nyisd meg: **Observe → Horizontal Pod Autoscalers**.
 2. Közben nyisd meg: **Workloads → Deployments**.
@@ -226,6 +306,7 @@ A [locust/locustfile.py](locust/locustfile.py) az alkalmazás fő funkcióit ter
 - Fotó feltöltés
 - Fotó megtekintés
 - Fotó törlés
+- Újra-bejelentkezés terhelés közben
 
 Így a teszt nem csak egy API végpontot terhel, hanem a teljes felhasználói működést modellezi.
 
@@ -237,4 +318,5 @@ A [locust/locustfile.py](locust/locustfile.py) az alkalmazás fő funkcióit ter
 - A MySQL adatok az adatbázisban maradnak meg.
 - A backend már stateless, ezért a backend HPA több replikára skálázható.
 - A backend sémafrissítés (pl. `content_type`, `image_data`) külön scriptben fut: `backend/migrate_photo_schema.py`.
+- A backend oldali bulk delete külön API végpont, és a lista rendezése az `order` paraméterrel is működik.
 - A `CHANGE_THIS_*` értékeket minden környezetben cserélni kell.

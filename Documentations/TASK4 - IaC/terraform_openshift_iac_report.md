@@ -10,7 +10,7 @@ Az adatbazis perzisztenciajat PVC biztositja, a Terraform oldalon pedig prevent_
 
 A Terraform a kovetkezo eroforrasokat kezeli:
 
-- namespace (projekt)
+- namespace (projekt)a
 - Secret az alkalmazas es az adatbazis konfiguraciojahoz
 - MySQL PVC, Deployment es Service
 - backend Deployment es Service
