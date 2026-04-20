@@ -104,6 +104,15 @@ jobs:
         run: |
           set -euo pipefail
 
+          OPENSHIFT_SERVER="$(printf '%s' "${OPENSHIFT_SERVER}" | tr -d '\r\n' | xargs)"
+          OPENSHIFT_TOKEN="$(printf '%s' "${OPENSHIFT_TOKEN}" | tr -d '\r\n' | xargs)"
+          OPENSHIFT_NAMESPACE="$(printf '%s' "${OPENSHIFT_NAMESPACE}" | tr -d '\r\n' | xargs)"
+
+          if [ -z "${OPENSHIFT_SERVER}" ] || [ -z "${OPENSHIFT_TOKEN}" ] || [ -z "${OPENSHIFT_NAMESPACE}" ]; then
+            echo "OPENSHIFT_SERVER, OPENSHIFT_TOKEN or OPENSHIFT_NAMESPACE is empty after normalization." >&2
+            exit 1
+          fi
+
           KUBECONFIG_FILE="${RUNNER_TEMP}/kubeconfig"
 
           if [ -n "${OPENSHIFT_CA_CERT}" ]; then
@@ -137,6 +146,13 @@ jobs:
 
           chmod 600 "${KUBECONFIG_FILE}"
           KCMD=(kubectl --kubeconfig "${KUBECONFIG_FILE}")
+
+          echo "Checking API reachability..."
+          if ! "${KCMD[@]}" version --request-timeout=15s >/dev/null 2>&1; then
+            echo "Cannot authenticate to OpenShift API with provided token/server." >&2
+            echo "Verify OPENSHIFT_SERVER points to the correct cluster and OPENSHIFT_TOKEN is valid (not expired/revoked)." >&2
+            exit 1
+          fi
 
           echo "Verifying token can access namespace ${OPENSHIFT_NAMESPACE}..."
           if ! "${KCMD[@]}" -n "${OPENSHIFT_NAMESPACE}" auth can-i get pods >/dev/null; then
@@ -200,6 +216,10 @@ jobs:
           ROLLOUT_TIMEOUT: ${{ vars.DEPLOY_ROLLOUT_TIMEOUT || '180s' }}
         run: |
           set -euo pipefail
+
+          OPENSHIFT_SERVER="$(printf '%s' "${OPENSHIFT_SERVER}" | tr -d '\r\n' | xargs)"
+          OPENSHIFT_TOKEN="$(printf '%s' "${OPENSHIFT_TOKEN}" | tr -d '\r\n' | xargs)"
+          OPENSHIFT_NAMESPACE="$(printf '%s' "${OPENSHIFT_NAMESPACE}" | tr -d '\r\n' | xargs)"
 
           KUBECONFIG_FILE="${RUNNER_TEMP}/kubeconfig"
 
