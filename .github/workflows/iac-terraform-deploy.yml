@@ -127,10 +127,6 @@ jobs:
           
           export TF_VAR_openshift_server TF_VAR_openshift_token TF_VAR_namespace TF_VAR_openshift_ca_cert
           
-          echo "DEBUG: TF_VAR_openshift_server=${TF_VAR_openshift_server}"
-          echo "DEBUG: TF_VAR_namespace=${TF_VAR_namespace}"
-          echo "DEBUG: TF_VAR_openshift_ca_cert=${TF_VAR_openshift_ca_cert:0:50}..."
-          
           terraform init -input=false
           
           echo "Validating Terraform configuration..."
@@ -277,9 +273,6 @@ jobs:
             echo "Invalid TF_VAR_mysql_root_password. Contains unsupported characters for the MySQL container image." >&2
             exit 1
           fi
-          
-          echo "DEBUG apply: TF_VAR_openshift_server=${TF_VAR_openshift_server}"
-          echo "DEBUG apply: TF_VAR_namespace=${TF_VAR_namespace}"
 
           esc_server="${TF_VAR_openshift_server//\"/\\\"}"
           esc_token="${TF_VAR_openshift_token//\"/\\\"}"

@@ -27,9 +27,10 @@ A projekt tartalmaz egy teljes Terraform alapú OpenShift deploy megoldást is, 
 - Secret
 - MySQL (PVC + Deployment + Service)
 - Backend és frontend (Deployment + Service)
-- OpenShift Route
 - NetworkPolicy szabályok
 - Opcionális HPA (backend + frontend)
+
+Megjegyzés: a frontend OpenShift Route jelenleg nem Terraform erőforrásként szerepel, hanem az IaC deploy workflow külön kubectl lépésben hozza létre.
 
 Elérési út: [infra/terraform/](infra/terraform/)
 
@@ -37,6 +38,7 @@ Automatikus deploy workflow:
 
 - [iac-terraform-deploy.yml](.github/workflows/iac-terraform-deploy.yml)
 - A Docker image build/push után automatikusan lefut a Terraform apply lépés.
+- Manuálisan is indítható workflow_dispatch eseménnyel.
 
 Külön Terraform leírás: [infra/terraform/README.md](infra/terraform/README.md)
 
@@ -148,11 +150,14 @@ OpenShift/Terraform oldalról ezek a secret és var beállítások számítanak:
 - `OPENSHIFT_SERVER`
 - `OPENSHIFT_TOKEN`
 - `OPENSHIFT_CA_CERT`
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN`
 - `TF_API_TOKEN`
 - `MYSQL_PASSWORD`
 - `MYSQL_ROOT_PASSWORD`
 - `BACKEND_SECRET_KEY`
 - `FRONTEND_SECRET_KEY`
+- `OPENSHIFT_NAMESPACE`
 - `ENABLE_HPA`
 - `DEPLOY_ROLLOUT_TIMEOUT`
 
