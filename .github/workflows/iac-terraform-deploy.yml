@@ -295,7 +295,7 @@ jobs:
             adopt_if_exists horizontalpodautoscaler backend-hpa kubernetes_horizontal_pod_autoscaler_v2.backend[0]
           fi
 
-          terraform apply "${TF_COMMON_ARGS[@]}" -auto-approve
+          terraform apply "${TF_COMMON_ARGS[@]}" -refresh=false -auto-approve
 
       - name: Create Frontend Route (kubectl)
         shell: bash
