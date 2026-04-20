@@ -100,7 +100,7 @@ jobs:
           OPENSHIFT_SERVER: ${{ secrets.OPENSHIFT_SERVER }}
           OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
           OPENSHIFT_CA_CERT: ${{ secrets.OPENSHIFT_CA_CERT }}
-          OPENSHIFT_NAMESPACE: ${{ vars.OPENSHIFT_NAMESPACE || 'photowebapp' }}
+          OPENSHIFT_NAMESPACE: ${{ vars.OPENSHIFT_NAMESPACE || secrets.OPENSHIFT_NAMESPACE || 'photowebapp' }}
         run: |
           set -euo pipefail
 
@@ -200,7 +200,7 @@ jobs:
           TF_VAR_openshift_server: ${{ secrets.OPENSHIFT_SERVER }}
           TF_VAR_openshift_token: ${{ secrets.OPENSHIFT_TOKEN }}
           TF_VAR_openshift_ca_cert: ${{ secrets.OPENSHIFT_CA_CERT }}
-          TF_VAR_namespace: ${{ vars.OPENSHIFT_NAMESPACE || 'photowebapp' }}
+          TF_VAR_namespace: ${{ vars.OPENSHIFT_NAMESPACE || secrets.OPENSHIFT_NAMESPACE || 'photowebapp' }}
           TF_VAR_mysql_database: photowebapp
           TF_VAR_mysql_user: photouser
           TF_VAR_mysql_password: ${{ secrets.MYSQL_PASSWORD }}
@@ -233,7 +233,7 @@ jobs:
           OPENSHIFT_SERVER: ${{ secrets.OPENSHIFT_SERVER }}
           OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
           OPENSHIFT_CA_CERT: ${{ secrets.OPENSHIFT_CA_CERT }}
-          OPENSHIFT_NAMESPACE: ${{ vars.OPENSHIFT_NAMESPACE || 'photowebapp' }}
+          OPENSHIFT_NAMESPACE: ${{ vars.OPENSHIFT_NAMESPACE || secrets.OPENSHIFT_NAMESPACE || 'photowebapp' }}
           ROLLOUT_TIMEOUT: ${{ vars.DEPLOY_ROLLOUT_TIMEOUT || '180s' }}
         run: |
           set -euo pipefail
