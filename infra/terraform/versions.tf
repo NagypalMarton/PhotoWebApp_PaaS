@@ -34,7 +34,6 @@ provider "kubernetes" {
   token                  = var.openshift_token
   cluster_ca_certificate = local.use_insecure_tls ? null : var.openshift_ca_cert
   insecure               = local.use_insecure_tls
-  load_config_file       = false
 }
 
 provider "kubectl" {
@@ -42,5 +41,4 @@ provider "kubectl" {
   token                  = var.openshift_token
   cluster_ca_certificate = local.use_insecure_tls ? null : var.openshift_ca_cert
   insecure               = local.use_insecure_tls
-  load_config_file       = false
 }
