@@ -62,14 +62,14 @@ resource "kubernetes_secret_v1" "app_secrets" {
 
   type = "Opaque"
 
-  string_data = {
-    MYSQL_DATABASE      = var.mysql_database
-    MYSQL_USER          = var.mysql_user
-    MYSQL_PASSWORD      = var.mysql_password
-    MYSQL_ROOT_PASSWORD = var.mysql_root_password
-    SECRET_KEY          = local.backend_secret_key_effective
-    FLASK_SECRET_KEY    = local.frontend_secret_key_effective
-    DATABASE_URL        = local.database_url
+  data = {
+    MYSQL_DATABASE      = base64encode(var.mysql_database)
+    MYSQL_USER          = base64encode(var.mysql_user)
+    MYSQL_PASSWORD      = base64encode(var.mysql_password)
+    MYSQL_ROOT_PASSWORD = base64encode(var.mysql_root_password)
+    SECRET_KEY          = base64encode(local.backend_secret_key_effective)
+    FLASK_SECRET_KEY    = base64encode(local.frontend_secret_key_effective)
+    DATABASE_URL        = base64encode(local.database_url)
   }
 }
 
