@@ -107,6 +107,12 @@ jobs:
           OPENSHIFT_SERVER="$(printf '%s' "${OPENSHIFT_SERVER}" | tr -d '\r\n' | xargs)"
           OPENSHIFT_TOKEN="$(printf '%s' "${OPENSHIFT_TOKEN}" | tr -d '\r\n' | xargs)"
           OPENSHIFT_NAMESPACE="$(printf '%s' "${OPENSHIFT_NAMESPACE}" | tr -d '\r\n' | xargs)"
+          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN#Bearer }"
+          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN#bearer }"
+          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN%\"}"
+          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN#\"}"
+          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN%\'}"
+          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN#\'}"
 
           if [ -z "${OPENSHIFT_SERVER}" ] || [ -z "${OPENSHIFT_TOKEN}" ] || [ -z "${OPENSHIFT_NAMESPACE}" ]; then
             echo "OPENSHIFT_SERVER, OPENSHIFT_TOKEN or OPENSHIFT_NAMESPACE is empty after normalization." >&2
@@ -204,7 +210,22 @@ jobs:
           TF_VAR_enable_hpa: ${{ vars.ENABLE_HPA || 'true' }}
           TF_VAR_backend_image: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/photowebapp-backend:${{ steps.tag.outputs.value }}
           TF_VAR_frontend_image: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/photowebapp-frontend:${{ steps.tag.outputs.value }}
-        run: terraform apply -auto-approve
+        run: |
+          set -euo pipefail
+
+          TF_VAR_openshift_server="$(printf '%s' "${TF_VAR_openshift_server}" | tr -d '\r\n' | xargs)"
+          TF_VAR_openshift_token="$(printf '%s' "${TF_VAR_openshift_token}" | tr -d '\r\n' | xargs)"
+          TF_VAR_namespace="$(printf '%s' "${TF_VAR_namespace}" | tr -d '\r\n' | xargs)"
+
+          TF_VAR_openshift_token="${TF_VAR_openshift_token#Bearer }"
+          TF_VAR_openshift_token="${TF_VAR_openshift_token#bearer }"
+          TF_VAR_openshift_token="${TF_VAR_openshift_token%\"}"
+          TF_VAR_openshift_token="${TF_VAR_openshift_token#\"}"
+          TF_VAR_openshift_token="${TF_VAR_openshift_token%\'}"
+          TF_VAR_openshift_token="${TF_VAR_openshift_token#\'}"
+
+          export TF_VAR_openshift_server TF_VAR_openshift_token TF_VAR_namespace
+          terraform apply -auto-approve
 
       - name: Verify OpenShift resources
         shell: bash
@@ -220,6 +241,12 @@ jobs:
           OPENSHIFT_SERVER="$(printf '%s' "${OPENSHIFT_SERVER}" | tr -d '\r\n' | xargs)"
           OPENSHIFT_TOKEN="$(printf '%s' "${OPENSHIFT_TOKEN}" | tr -d '\r\n' | xargs)"
           OPENSHIFT_NAMESPACE="$(printf '%s' "${OPENSHIFT_NAMESPACE}" | tr -d '\r\n' | xargs)"
+          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN#Bearer }"
+          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN#bearer }"
+          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN%\"}"
+          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN#\"}"
+          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN%\'}"
+          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN#\'}"
 
           KUBECONFIG_FILE="${RUNNER_TEMP}/kubeconfig"
 
