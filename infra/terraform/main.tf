@@ -470,32 +470,6 @@ resource "kubernetes_service_v1" "frontend" {
   }
 }
 
-resource "kubernetes_manifest" "frontend_route" {
-  manifest = {
-    apiVersion = "route.openshift.io/v1"
-    kind       = "Route"
-    metadata = {
-      name      = "frontend"
-      namespace = local.namespace_name
-    }
-    spec = {
-      to = {
-        kind = "Service"
-        name = "frontend"
-      }
-      port = {
-        targetPort = "http"
-      }
-      tls = {
-        termination                  = "edge"
-        insecureEdgeTerminationPolicy = "Redirect"
-      }
-    }
-  }
-
-  depends_on = [kubernetes_service_v1.frontend]
-}
-
 resource "kubernetes_network_policy_v1" "default_deny_ingress" {
   metadata {
     name      = "default-deny-ingress"

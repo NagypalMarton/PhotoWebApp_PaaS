@@ -357,14 +357,9 @@ jobs:
           adopt_if_exists networkpolicy allow-backend-from-frontend kubernetes_network_policy_v1.allow_backend_from_frontend
           adopt_if_exists networkpolicy allow-frontend-from-router kubernetes_network_policy_v1.allow_frontend_from_router
 
-          if terraform state show kubernetes_manifest.frontend_route >/dev/null 2>&1; then
-            echo "State already contains kubernetes_manifest.frontend_route"
-          elif "${KCMD[@]}" -n "${TF_VAR_namespace}" get route frontend >/dev/null 2>&1; then
-            echo "Importing existing route/frontend into kubernetes_manifest.frontend_route"
-            terraform import kubernetes_manifest.frontend_route "apiVersion=route.openshift.io/v1,kind=Route,namespace=${TF_VAR_namespace},name=frontend"
-          else
-            echo "route/frontend not found in namespace ${TF_VAR_namespace}, Terraform will create it"
-          fi
+          # Note: kubernetes_manifest Route import skipped due to RBAC (CRD listing not permitted)
+          # Terraform will create Route if it doesn't exist, or OpenShift may already have one
+          echo "Route creation will be handled by terraform apply (no import needed for kubernetes_manifest)"
 
           if [ "${TF_VAR_enable_hpa}" = "true" ]; then
             adopt_if_exists horizontalpodautoscaler frontend-hpa kubernetes_horizontal_pod_autoscaler_v2.frontend[0]
@@ -372,6 +367,89 @@ jobs:
           fi
 
           terraform apply -auto-approve
+
+      - name: Create Frontend Route (kubectl)
+        shell: bash
+        env:
+          OPENSHIFT_SERVER: ${{ secrets.OPENSHIFT_SERVER }}
+          OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
+          OPENSHIFT_CA_CERT: ${{ secrets.OPENSHIFT_CA_CERT }}
+          OPENSHIFT_NAMESPACE: ${{ vars.OPENSHIFT_NAMESPACE || secrets.OPENSHIFT_NAMESPACE || 'photowebapp' }}
+        run: |
+          set -euo pipefail
+
+          OPENSHIFT_SERVER="$(printf '%s' "${OPENSHIFT_SERVER}" | tr -d '\r\n' | xargs)"
+          OPENSHIFT_TOKEN="$(printf '%s' "${OPENSHIFT_TOKEN}" | tr -d '\r\n' | xargs)"
+          OPENSHIFT_NAMESPACE="$(printf '%s' "${OPENSHIFT_NAMESPACE}" | tr -d '\r\n' | xargs)"
+          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN#Bearer }"
+          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN#bearer }"
+          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN%\"}"
+          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN#\"}"
+          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN%\'}"
+          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN#\'}"
+
+          KUBECONFIG_FILE="${RUNNER_TEMP}/kubeconfig"
+
+          if [ -n "${OPENSHIFT_CA_CERT}" ]; then
+            CA_FILE="${RUNNER_TEMP}/openshift-ca.crt"
+            printf '%s\n' "${OPENSHIFT_CA_CERT}" > "${CA_FILE}"
+            TLS_LINE="certificate-authority: ${CA_FILE}"
+          else
+            TLS_LINE="insecure-skip-tls-verify: true"
+          fi
+
+          cat > "${KUBECONFIG_FILE}" <<EOF
+          apiVersion: v1
+          kind: Config
+          clusters:
+            - name: target
+              cluster:
+                server: ${OPENSHIFT_SERVER}
+                ${TLS_LINE}
+          users:
+            - name: token-user
+              user:
+                token: ${OPENSHIFT_TOKEN}
+          contexts:
+            - name: target-context
+              context:
+                cluster: target
+                user: token-user
+                namespace: ${OPENSHIFT_NAMESPACE}
+          current-context: target-context
+          EOF
+
+          chmod 600 "${KUBECONFIG_FILE}"
+          KCMD=(kubectl --kubeconfig "${KUBECONFIG_FILE}")
+
+          # Check if route already exists
+          if "${KCMD[@]}" -n "${OPENSHIFT_NAMESPACE}" get route frontend >/dev/null 2>&1; then
+            echo "Route frontend already exists, skipping creation"
+            exit 0
+          fi
+
+          echo "Creating frontend route..."
+          ROUTE_YAML=$(cat <<'ROUTEEOF'
+          apiVersion: route.openshift.io/v1
+          kind: Route
+          metadata:
+            name: frontend
+            labels:
+              app: photowebapp
+          spec:
+            to:
+              kind: Service
+              name: frontend
+            port:
+              targetPort: http
+            tls:
+              termination: edge
+              insecureEdgeTerminationPolicy: Redirect
+          ROUTEEOF
+          )
+
+          echo "${ROUTE_YAML}" | "${KCMD[@]}" -n "${OPENSHIFT_NAMESPACE}" apply -f -
+          echo "Route frontend created successfully"
 
       - name: Verify OpenShift resources
         shell: bash
