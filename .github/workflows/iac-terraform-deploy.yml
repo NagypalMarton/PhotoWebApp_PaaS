@@ -76,8 +76,31 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.image_tag }}" ]; then
             echo "value=${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
           else
-            echo "value=${SOURCE_SHA::7}" >> "$GITHUB_OUTPUT"
+            # docker/metadata-action uses sha-<shortsha> by default for type=sha tags
+            echo "value=sha-${SOURCE_SHA::7}" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Verify Docker image tags exist
+        shell: bash
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          BACKEND_IMAGE="docker.io/${DOCKERHUB_USERNAME}/photowebapp-backend:${{ steps.tag.outputs.value }}"
+          FRONTEND_IMAGE="docker.io/${DOCKERHUB_USERNAME}/photowebapp-frontend:${{ steps.tag.outputs.value }}"
+
+          echo "Logging in to Docker Hub for manifest checks..."
+          printf '%s' "${DOCKERHUB_TOKEN}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
+
+          echo "Checking image tag availability: ${BACKEND_IMAGE}"
+          docker manifest inspect "${BACKEND_IMAGE}" >/dev/null
+
+          echo "Checking image tag availability: ${FRONTEND_IMAGE}"
+          docker manifest inspect "${FRONTEND_IMAGE}" >/dev/null
+
+          echo "Both backend and frontend image tags are available."
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
