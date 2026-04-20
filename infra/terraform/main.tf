@@ -631,6 +631,7 @@ resource "kubernetes_horizontal_pod_autoscaler_v2" "frontend" {
     behavior {
       scale_up {
         stabilization_window_seconds = 15
+        select_policy                = "Max"
 
         policy {
           type           = "Pods"
@@ -641,6 +642,7 @@ resource "kubernetes_horizontal_pod_autoscaler_v2" "frontend" {
 
       scale_down {
         stabilization_window_seconds = 30
+        select_policy                = "Max"
 
         policy {
           type           = "Pods"
@@ -684,6 +686,7 @@ resource "kubernetes_horizontal_pod_autoscaler_v2" "backend" {
     behavior {
       scale_up {
         stabilization_window_seconds = 15
+        select_policy                = "Max"
 
         policy {
           type           = "Pods"
@@ -694,6 +697,7 @@ resource "kubernetes_horizontal_pod_autoscaler_v2" "backend" {
 
       scale_down {
         stabilization_window_seconds = 30
+        select_policy                = "Max"
 
         policy {
           type           = "Pods"
