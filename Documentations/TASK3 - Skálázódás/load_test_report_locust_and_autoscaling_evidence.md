@@ -6,7 +6,7 @@ Ennek a terheléspróbának az volt a célja, hogy igazolja: az alkalmazás nagy
 
 ## A terhelés beállítása
 
-A méréshez példaként 60 felhasználót és 10-es spawn rate-et használtam, a futási idő pedig körülbelül 5 perc volt. Ez elég ahhoz, hogy látható legyen a rendszer viselkedése terhelés alatt, ugyanakkor nem túl hosszú ahhoz, hogy a teszt kezelhetetlenné váljon.
+A méréshez példaként 200 felhasználót és 50-es spawn rate-et használtam, a futási idő pedig körülbelül 30 perc volt. Ez elég ahhoz, hogy látható legyen a rendszer viselkedése terhelés alatt, ugyanakkor nem túlságosan hosszú ahhoz, hogy a teszt kezelhetetlenné váljon.
 
 ## A terhelés által lefedett funkciók
 
