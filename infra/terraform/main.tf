@@ -7,6 +7,16 @@ locals {
   backend_secret_key_effective  = trimspace(var.backend_secret_key) != "" ? var.backend_secret_key : random_password.backend_secret_key.result
   frontend_secret_key_effective = trimspace(var.frontend_secret_key) != "" ? var.frontend_secret_key : random_password.frontend_secret_key.result
   database_url                  = "mysql+pymysql://${var.mysql_user}:${var.mysql_password}@mysql:3306/${var.mysql_database}"
+  dockerhub_pull_secret_enabled = trimspace(var.dockerhub_username) != "" && trimspace(var.dockerhub_token) != ""
+  dockerhub_dockerconfigjson = jsonencode({
+    auths = {
+      "https://index.docker.io/v1/" = {
+        username = var.dockerhub_username
+        password = var.dockerhub_token
+        auth     = base64encode("${var.dockerhub_username}:${var.dockerhub_token}")
+      }
+    }
+  })
 }
 
 resource "random_password" "backend_secret_key" {
@@ -73,6 +83,21 @@ resource "kubernetes_secret_v1" "app_secrets" {
     SECRET_KEY          = local.backend_secret_key_effective
     FLASK_SECRET_KEY    = local.frontend_secret_key_effective
     DATABASE_URL        = local.database_url
+  }
+}
+
+resource "kubernetes_secret_v1" "dockerhub_pull" {
+  count = local.dockerhub_pull_secret_enabled ? 1 : 0
+
+  metadata {
+    name      = "dockerhub-pull"
+    namespace = local.namespace_name
+  }
+
+  type = "kubernetes.io/dockerconfigjson"
+
+  data = {
+    ".dockerconfigjson" = local.dockerhub_dockerconfigjson
   }
 }
 
@@ -264,6 +289,13 @@ resource "kubernetes_deployment_v1" "backend" {
         service_account_name            = kubernetes_service_account_v1.backend.metadata[0].name
         automount_service_account_token = false
 
+        dynamic "image_pull_secrets" {
+          for_each = local.dockerhub_pull_secret_enabled ? [1] : []
+          content {
+            name = kubernetes_secret_v1.dockerhub_pull[0].metadata[0].name
+          }
+        }
+
         init_container {
           name  = "wait-for-mysql"
           image = "busybox:1.36"
@@ -395,6 +427,13 @@ resource "kubernetes_deployment_v1" "frontend" {
       spec {
         service_account_name            = kubernetes_service_account_v1.frontend.metadata[0].name
         automount_service_account_token = false
+
+        dynamic "image_pull_secrets" {
+          for_each = local.dockerhub_pull_secret_enabled ? [1] : []
+          content {
+            name = kubernetes_secret_v1.dockerhub_pull[0].metadata[0].name
+          }
+        }
 
         init_container {
           name  = "wait-for-backend"

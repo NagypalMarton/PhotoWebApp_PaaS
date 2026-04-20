@@ -51,6 +51,19 @@ variable "mysql_root_password" {
   sensitive   = true
 }
 
+variable "dockerhub_username" {
+  description = "Docker Hub username for private image pulls (optional)"
+  type        = string
+  default     = ""
+}
+
+variable "dockerhub_token" {
+  description = "Docker Hub token/password for private image pulls (optional)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "backend_secret_key" {
   description = "Flask secret key for backend (optional; random value generated when empty)"
   type        = string
