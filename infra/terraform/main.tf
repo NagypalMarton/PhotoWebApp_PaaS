@@ -470,23 +470,28 @@ resource "kubernetes_service_v1" "frontend" {
   }
 }
 
-resource "kubectl_manifest" "frontend_route" {
-  yaml_body = <<-YAML
-    apiVersion: route.openshift.io/v1
-    kind: Route
-    metadata:
-      name: frontend
-      namespace: ${local.namespace_name}
-    spec:
-      to:
-        kind: Service
-        name: frontend
-      port:
-        targetPort: http
-      tls:
-        termination: edge
-        insecureEdgeTerminationPolicy: Redirect
-  YAML
+resource "kubernetes_manifest" "frontend_route" {
+  manifest = {
+    apiVersion = "route.openshift.io/v1"
+    kind       = "Route"
+    metadata = {
+      name      = "frontend"
+      namespace = local.namespace_name
+    }
+    spec = {
+      to = {
+        kind = "Service"
+        name = "frontend"
+      }
+      port = {
+        targetPort = "http"
+      }
+      tls = {
+        termination                  = "edge"
+        insecureEdgeTerminationPolicy = "Redirect"
+      }
+    }
+  }
 
   depends_on = [kubernetes_service_v1.frontend]
 }

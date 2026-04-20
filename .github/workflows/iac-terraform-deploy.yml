@@ -357,11 +357,11 @@ jobs:
           adopt_if_exists networkpolicy allow-backend-from-frontend kubernetes_network_policy_v1.allow_backend_from_frontend
           adopt_if_exists networkpolicy allow-frontend-from-router kubernetes_network_policy_v1.allow_frontend_from_router
 
-          if terraform state show kubectl_manifest.frontend_route >/dev/null 2>&1; then
-            echo "State already contains kubectl_manifest.frontend_route"
+          if terraform state show kubernetes_manifest.frontend_route >/dev/null 2>&1; then
+            echo "State already contains kubernetes_manifest.frontend_route"
           elif "${KCMD[@]}" -n "${TF_VAR_namespace}" get route frontend >/dev/null 2>&1; then
-            echo "Importing existing route/frontend into kubectl_manifest.frontend_route"
-            terraform import kubectl_manifest.frontend_route "route.openshift.io/v1//Route//frontend//${TF_VAR_namespace}"
+            echo "Importing existing route/frontend into kubernetes_manifest.frontend_route"
+            terraform import kubernetes_manifest.frontend_route "apiVersion=route.openshift.io/v1,kind=Route,namespace=${TF_VAR_namespace},name=frontend"
           else
             echo "route/frontend not found in namespace ${TF_VAR_namespace}, Terraform will create it"
           fi
