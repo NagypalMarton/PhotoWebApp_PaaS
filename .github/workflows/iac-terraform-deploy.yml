@@ -251,6 +251,17 @@ jobs:
 
           KCMD=(kubectl --kubeconfig "${KUBECONFIG_FILE}")
 
+          # Clean up legacy Route resources from state so apply does not try to destroy via old provider.
+          if terraform state show kubectl_manifest.frontend_route >/dev/null 2>&1; then
+            echo "Removing legacy state entry: kubectl_manifest.frontend_route"
+            terraform state rm kubectl_manifest.frontend_route
+          fi
+
+          if terraform state show kubernetes_manifest.frontend_route >/dev/null 2>&1; then
+            echo "Removing legacy state entry: kubernetes_manifest.frontend_route"
+            terraform state rm kubernetes_manifest.frontend_route
+          fi
+
           adopt_if_exists() {
             local kind="$1"
             local name="$2"
