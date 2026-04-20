@@ -87,70 +87,48 @@ jobs:
         shell: bash
         env:
           TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
-        run: terraform init -input=false
+          TF_VAR_openshift_server: ${{ secrets.OPENSHIFT_SERVER }}
+          TF_VAR_openshift_token: ${{ secrets.OPENSHIFT_TOKEN }}
+          TF_VAR_openshift_ca_cert: ${{ secrets.OPENSHIFT_CA_CERT }}
+          TF_VAR_namespace: ${{ vars.OPENSHIFT_NAMESPACE || secrets.OPENSHIFT_NAMESPACE || 'photowebapp' }}
+        run: |
+          set -euo pipefail
+          
+          # Normalize variables
+          TF_VAR_openshift_server="$(printf '%s' "${TF_VAR_openshift_server}" | tr -d '\r\n' | xargs)"
+          TF_VAR_openshift_token="$(printf '%s' "${TF_VAR_openshift_token}" | tr -d '\r\n' | xargs)"
+          TF_VAR_namespace="$(printf '%s' "${TF_VAR_namespace}" | tr -d '\r\n' | xargs)"
+          TF_VAR_openshift_ca_cert="$(printf '%s' "${TF_VAR_openshift_ca_cert}" | tr -d '\r')"
+          
+          export TF_VAR_openshift_server TF_VAR_openshift_token TF_VAR_namespace TF_VAR_openshift_ca_cert
+          
+          echo "DEBUG: TF_VAR_openshift_server=${TF_VAR_openshift_server}"
+          echo "DEBUG: TF_VAR_namespace=${TF_VAR_namespace}"
+          echo "DEBUG: TF_VAR_openshift_ca_cert=${TF_VAR_openshift_ca_cert:0:50}..."
+          
+          terraform init -input=false
+          
+          echo "Validating Terraform configuration..."
+          terraform validate
 
       - name: Install kubectl
         uses: azure/setup-kubectl@v4
         with:
           version: v1.29.4
 
+      - name: Setup kubeconfig
+        uses: ./.github/actions/setup-openshift-kubeconfig
+        with:
+          openshift-server: ${{ secrets.OPENSHIFT_SERVER }}
+          openshift-token: ${{ secrets.OPENSHIFT_TOKEN }}
+          openshift-ca-cert: ${{ secrets.OPENSHIFT_CA_CERT }}
+          openshift-namespace: ${{ vars.OPENSHIFT_NAMESPACE || secrets.OPENSHIFT_NAMESPACE || 'photowebapp' }}
+
       - name: Preflight OpenShift access and RBAC
         shell: bash
-        env:
-          OPENSHIFT_SERVER: ${{ secrets.OPENSHIFT_SERVER }}
-          OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
-          OPENSHIFT_CA_CERT: ${{ secrets.OPENSHIFT_CA_CERT }}
-          OPENSHIFT_NAMESPACE: ${{ vars.OPENSHIFT_NAMESPACE || secrets.OPENSHIFT_NAMESPACE || 'photowebapp' }}
         run: |
           set -euo pipefail
 
-          OPENSHIFT_SERVER="$(printf '%s' "${OPENSHIFT_SERVER}" | tr -d '\r\n' | xargs)"
-          OPENSHIFT_TOKEN="$(printf '%s' "${OPENSHIFT_TOKEN}" | tr -d '\r\n' | xargs)"
-          OPENSHIFT_NAMESPACE="$(printf '%s' "${OPENSHIFT_NAMESPACE}" | tr -d '\r\n' | xargs)"
-          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN#Bearer }"
-          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN#bearer }"
-          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN%\"}"
-          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN#\"}"
-          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN%\'}"
-          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN#\'}"
-
-          if [ -z "${OPENSHIFT_SERVER}" ] || [ -z "${OPENSHIFT_TOKEN}" ] || [ -z "${OPENSHIFT_NAMESPACE}" ]; then
-            echo "OPENSHIFT_SERVER, OPENSHIFT_TOKEN or OPENSHIFT_NAMESPACE is empty after normalization." >&2
-            exit 1
-          fi
-
-          KUBECONFIG_FILE="${RUNNER_TEMP}/kubeconfig"
-
-          if [ -n "${OPENSHIFT_CA_CERT}" ]; then
-            CA_FILE="${RUNNER_TEMP}/openshift-ca.crt"
-            printf '%s\n' "${OPENSHIFT_CA_CERT}" > "${CA_FILE}"
-            TLS_LINE="certificate-authority: ${CA_FILE}"
-          else
-            TLS_LINE="insecure-skip-tls-verify: true"
-          fi
-
-          cat > "${KUBECONFIG_FILE}" <<EOF
-          apiVersion: v1
-          kind: Config
-          clusters:
-            - name: target
-              cluster:
-                server: ${OPENSHIFT_SERVER}
-                ${TLS_LINE}
-          users:
-            - name: token-user
-              user:
-                token: ${OPENSHIFT_TOKEN}
-          contexts:
-            - name: target-context
-              context:
-                cluster: target
-                user: token-user
-                namespace: ${OPENSHIFT_NAMESPACE}
-          current-context: target-context
-          EOF
-
-          chmod 600 "${KUBECONFIG_FILE}"
           KCMD=(kubectl --kubeconfig "${KUBECONFIG_FILE}")
 
           echo "Checking API reachability..."
@@ -194,56 +172,9 @@ jobs:
 
       - name: Prune stale ReplicaSets
         shell: bash
-        env:
-          OPENSHIFT_SERVER: ${{ secrets.OPENSHIFT_SERVER }}
-          OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
-          OPENSHIFT_CA_CERT: ${{ secrets.OPENSHIFT_CA_CERT }}
-          OPENSHIFT_NAMESPACE: ${{ vars.OPENSHIFT_NAMESPACE || secrets.OPENSHIFT_NAMESPACE || 'photowebapp' }}
         run: |
           set -euo pipefail
 
-          OPENSHIFT_SERVER="$(printf '%s' "${OPENSHIFT_SERVER}" | tr -d '\r\n' | xargs)"
-          OPENSHIFT_TOKEN="$(printf '%s' "${OPENSHIFT_TOKEN}" | tr -d '\r\n' | xargs)"
-          OPENSHIFT_NAMESPACE="$(printf '%s' "${OPENSHIFT_NAMESPACE}" | tr -d '\r\n' | xargs)"
-          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN#Bearer }"
-          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN#bearer }"
-          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN%\"}"
-          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN#\"}"
-          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN%\'}"
-          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN#\'}"
-
-          KUBECONFIG_FILE="${RUNNER_TEMP}/kubeconfig"
-
-          if [ -n "${OPENSHIFT_CA_CERT}" ]; then
-            CA_FILE="${RUNNER_TEMP}/openshift-ca.crt"
-            printf '%s\n' "${OPENSHIFT_CA_CERT}" > "${CA_FILE}"
-            TLS_LINE="certificate-authority: ${CA_FILE}"
-          else
-            TLS_LINE="insecure-skip-tls-verify: true"
-          fi
-
-          cat > "${KUBECONFIG_FILE}" <<EOF
-          apiVersion: v1
-          kind: Config
-          clusters:
-            - name: target
-              cluster:
-                server: ${OPENSHIFT_SERVER}
-                ${TLS_LINE}
-          users:
-            - name: token-user
-              user:
-                token: ${OPENSHIFT_TOKEN}
-          contexts:
-            - name: target-context
-              context:
-                cluster: target
-                user: token-user
-                namespace: ${OPENSHIFT_NAMESPACE}
-          current-context: target-context
-          EOF
-
-          chmod 600 "${KUBECONFIG_FILE}"
           KCMD=(kubectl --kubeconfig "${KUBECONFIG_FILE}")
 
           echo "Pruning stale ReplicaSets to free quota..."
@@ -278,6 +209,7 @@ jobs:
           TF_VAR_openshift_server="$(printf '%s' "${TF_VAR_openshift_server}" | tr -d '\r\n' | xargs)"
           TF_VAR_openshift_token="$(printf '%s' "${TF_VAR_openshift_token}" | tr -d '\r\n' | xargs)"
           TF_VAR_namespace="$(printf '%s' "${TF_VAR_namespace}" | tr -d '\r\n' | xargs)"
+          TF_VAR_openshift_ca_cert="$(printf '%s' "${TF_VAR_openshift_ca_cert}" | tr -d '\r')"
 
           TF_VAR_openshift_token="${TF_VAR_openshift_token#Bearer }"
           TF_VAR_openshift_token="${TF_VAR_openshift_token#bearer }"
@@ -286,40 +218,11 @@ jobs:
           TF_VAR_openshift_token="${TF_VAR_openshift_token%\'}"
           TF_VAR_openshift_token="${TF_VAR_openshift_token#\'}"
 
-          export TF_VAR_openshift_server TF_VAR_openshift_token TF_VAR_namespace
+          export TF_VAR_openshift_server TF_VAR_openshift_token TF_VAR_namespace TF_VAR_openshift_ca_cert
+          
+          echo "DEBUG apply: TF_VAR_openshift_server=${TF_VAR_openshift_server}"
+          echo "DEBUG apply: TF_VAR_namespace=${TF_VAR_namespace}"
 
-          KUBECONFIG_FILE="${RUNNER_TEMP}/kubeconfig"
-
-          if [ -n "${TF_VAR_openshift_ca_cert}" ]; then
-            CA_FILE="${RUNNER_TEMP}/openshift-ca.crt"
-            printf '%s\n' "${TF_VAR_openshift_ca_cert}" > "${CA_FILE}"
-            TLS_LINE="certificate-authority: ${CA_FILE}"
-          else
-            TLS_LINE="insecure-skip-tls-verify: true"
-          fi
-
-          cat > "${KUBECONFIG_FILE}" <<EOF
-          apiVersion: v1
-          kind: Config
-          clusters:
-            - name: target
-              cluster:
-                server: ${TF_VAR_openshift_server}
-                ${TLS_LINE}
-          users:
-            - name: token-user
-              user:
-                token: ${TF_VAR_openshift_token}
-          contexts:
-            - name: target-context
-              context:
-                cluster: target
-                user: token-user
-                namespace: ${TF_VAR_namespace}
-          current-context: target-context
-          EOF
-
-          chmod 600 "${KUBECONFIG_FILE}"
           KCMD=(kubectl --kubeconfig "${KUBECONFIG_FILE}")
 
           adopt_if_exists() {
@@ -370,56 +273,9 @@ jobs:
 
       - name: Create Frontend Route (kubectl)
         shell: bash
-        env:
-          OPENSHIFT_SERVER: ${{ secrets.OPENSHIFT_SERVER }}
-          OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
-          OPENSHIFT_CA_CERT: ${{ secrets.OPENSHIFT_CA_CERT }}
-          OPENSHIFT_NAMESPACE: ${{ vars.OPENSHIFT_NAMESPACE || secrets.OPENSHIFT_NAMESPACE || 'photowebapp' }}
         run: |
           set -euo pipefail
 
-          OPENSHIFT_SERVER="$(printf '%s' "${OPENSHIFT_SERVER}" | tr -d '\r\n' | xargs)"
-          OPENSHIFT_TOKEN="$(printf '%s' "${OPENSHIFT_TOKEN}" | tr -d '\r\n' | xargs)"
-          OPENSHIFT_NAMESPACE="$(printf '%s' "${OPENSHIFT_NAMESPACE}" | tr -d '\r\n' | xargs)"
-          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN#Bearer }"
-          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN#bearer }"
-          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN%\"}"
-          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN#\"}"
-          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN%\'}"
-          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN#\'}"
-
-          KUBECONFIG_FILE="${RUNNER_TEMP}/kubeconfig"
-
-          if [ -n "${OPENSHIFT_CA_CERT}" ]; then
-            CA_FILE="${RUNNER_TEMP}/openshift-ca.crt"
-            printf '%s\n' "${OPENSHIFT_CA_CERT}" > "${CA_FILE}"
-            TLS_LINE="certificate-authority: ${CA_FILE}"
-          else
-            TLS_LINE="insecure-skip-tls-verify: true"
-          fi
-
-          cat > "${KUBECONFIG_FILE}" <<EOF
-          apiVersion: v1
-          kind: Config
-          clusters:
-            - name: target
-              cluster:
-                server: ${OPENSHIFT_SERVER}
-                ${TLS_LINE}
-          users:
-            - name: token-user
-              user:
-                token: ${OPENSHIFT_TOKEN}
-          contexts:
-            - name: target-context
-              context:
-                cluster: target
-                user: token-user
-                namespace: ${OPENSHIFT_NAMESPACE}
-          current-context: target-context
-          EOF
-
-          chmod 600 "${KUBECONFIG_FILE}"
           KCMD=(kubectl --kubeconfig "${KUBECONFIG_FILE}")
 
           # Check if route already exists
@@ -454,56 +310,9 @@ jobs:
       - name: Verify OpenShift resources
         shell: bash
         env:
-          OPENSHIFT_SERVER: ${{ secrets.OPENSHIFT_SERVER }}
-          OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
-          OPENSHIFT_CA_CERT: ${{ secrets.OPENSHIFT_CA_CERT }}
-          OPENSHIFT_NAMESPACE: ${{ vars.OPENSHIFT_NAMESPACE || secrets.OPENSHIFT_NAMESPACE || 'photowebapp' }}
           ROLLOUT_TIMEOUT: ${{ vars.DEPLOY_ROLLOUT_TIMEOUT || '180s' }}
         run: |
           set -euo pipefail
-
-          OPENSHIFT_SERVER="$(printf '%s' "${OPENSHIFT_SERVER}" | tr -d '\r\n' | xargs)"
-          OPENSHIFT_TOKEN="$(printf '%s' "${OPENSHIFT_TOKEN}" | tr -d '\r\n' | xargs)"
-          OPENSHIFT_NAMESPACE="$(printf '%s' "${OPENSHIFT_NAMESPACE}" | tr -d '\r\n' | xargs)"
-          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN#Bearer }"
-          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN#bearer }"
-          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN%\"}"
-          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN#\"}"
-          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN%\'}"
-          OPENSHIFT_TOKEN="${OPENSHIFT_TOKEN#\'}"
-
-          KUBECONFIG_FILE="${RUNNER_TEMP}/kubeconfig"
-
-          if [ -n "${OPENSHIFT_CA_CERT}" ]; then
-            CA_FILE="${RUNNER_TEMP}/openshift-ca.crt"
-            printf '%s\n' "${OPENSHIFT_CA_CERT}" > "${CA_FILE}"
-            TLS_LINE="certificate-authority: ${CA_FILE}"
-          else
-            TLS_LINE="insecure-skip-tls-verify: true"
-          fi
-
-          cat > "${KUBECONFIG_FILE}" <<EOF
-          apiVersion: v1
-          kind: Config
-          clusters:
-            - name: target
-              cluster:
-                server: ${OPENSHIFT_SERVER}
-                ${TLS_LINE}
-          users:
-            - name: token-user
-              user:
-                token: ${OPENSHIFT_TOKEN}
-          contexts:
-            - name: target-context
-              context:
-                cluster: target
-                user: token-user
-                namespace: ${OPENSHIFT_NAMESPACE}
-          current-context: target-context
-          EOF
-
-          chmod 600 "${KUBECONFIG_FILE}"
 
           KCMD=(kubectl --kubeconfig "${KUBECONFIG_FILE}")
 
