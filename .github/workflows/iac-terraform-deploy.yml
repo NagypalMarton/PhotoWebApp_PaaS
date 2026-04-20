@@ -373,10 +373,36 @@ jobs:
           "${KCMD[@]}" -n "${OPENSHIFT_NAMESPACE}" get deployment backend frontend mysql
           "${KCMD[@]}" -n "${OPENSHIFT_NAMESPACE}" get service backend frontend mysql
 
+          dump_diagnostics() {
+            local deployment_name="$1"
+            echo "--- Diagnostics for ${deployment_name} ---"
+            "${KCMD[@]}" -n "${OPENSHIFT_NAMESPACE}" describe deployment "${deployment_name}" || true
+            "${KCMD[@]}" -n "${OPENSHIFT_NAMESPACE}" get pods -o wide || true
+            "${KCMD[@]}" -n "${OPENSHIFT_NAMESPACE}" get events --sort-by=.lastTimestamp || true
+
+            pods=$("${KCMD[@]}" -n "${OPENSHIFT_NAMESPACE}" get pods -l app="${deployment_name}" -o name 2>/dev/null || true)
+            for pod in ${pods}; do
+              echo "--- ${pod} describe ---"
+              "${KCMD[@]}" -n "${OPENSHIFT_NAMESPACE}" describe "${pod}" || true
+              echo "--- ${pod} logs ---"
+              "${KCMD[@]}" -n "${OPENSHIFT_NAMESPACE}" logs "${pod}" --all-containers=true --tail=200 || true
+            done
+          }
+
+          wait_for_rollout() {
+            local deployment_name="$1"
+            echo "Waiting for rollout of ${deployment_name}..."
+            if ! "${KCMD[@]}" -n "${OPENSHIFT_NAMESPACE}" rollout status "deployment/${deployment_name}" --timeout="${ROLLOUT_TIMEOUT}"; then
+              echo "Rollout failed for ${deployment_name}" >&2
+              dump_diagnostics "${deployment_name}"
+              exit 1
+            fi
+          }
+
           echo "Waiting for rollout completion..."
-          "${KCMD[@]}" -n "${OPENSHIFT_NAMESPACE}" rollout status deployment/mysql --timeout="${ROLLOUT_TIMEOUT}"
-          "${KCMD[@]}" -n "${OPENSHIFT_NAMESPACE}" rollout status deployment/backend --timeout="${ROLLOUT_TIMEOUT}"
-          "${KCMD[@]}" -n "${OPENSHIFT_NAMESPACE}" rollout status deployment/frontend --timeout="${ROLLOUT_TIMEOUT}"
+          wait_for_rollout mysql
+          wait_for_rollout backend
+          wait_for_rollout frontend
 
           echo "Checking PVC state..."
           PVC_PHASE=$("${KCMD[@]}" -n "${OPENSHIFT_NAMESPACE}" get pvc mysql-pvc -o jsonpath='{.status.phase}')
