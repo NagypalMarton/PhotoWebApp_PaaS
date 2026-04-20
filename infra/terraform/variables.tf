@@ -21,6 +21,12 @@ variable "namespace" {
   default     = "photowebapp"
 }
 
+variable "manage_namespace" {
+  description = "Whether Terraform should create/manage the namespace (requires cluster-level permissions)"
+  type        = bool
+  default     = false
+}
+
 variable "mysql_database" {
   description = "MySQL database name"
   type        = string

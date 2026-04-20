@@ -3,6 +3,7 @@ locals {
     app = "photowebapp"
   }
 
+  namespace_name                = var.manage_namespace ? kubernetes_namespace_v1.app[0].metadata[0].name : var.namespace
   backend_secret_key_effective  = trimspace(var.backend_secret_key) != "" ? var.backend_secret_key : random_password.backend_secret_key.result
   frontend_secret_key_effective = trimspace(var.frontend_secret_key) != "" ? var.frontend_secret_key : random_password.frontend_secret_key.result
   database_url                  = "mysql+pymysql://${var.mysql_user}:${var.mysql_password}@mysql:3306/${var.mysql_database}"
@@ -18,6 +19,8 @@ resource "random_password" "frontend_secret_key" {
   special = false
 }
 resource "kubernetes_namespace_v1" "app" {
+  count = var.manage_namespace ? 1 : 0
+
   metadata {
     name   = var.namespace
     labels = local.labels
@@ -27,7 +30,7 @@ resource "kubernetes_namespace_v1" "app" {
 resource "kubernetes_service_account_v1" "backend" {
   metadata {
     name      = "backend-sa"
-    namespace = kubernetes_namespace_v1.app.metadata[0].name
+    namespace = local.namespace_name
     labels = {
       app = "backend"
     }
@@ -37,7 +40,7 @@ resource "kubernetes_service_account_v1" "backend" {
 resource "kubernetes_service_account_v1" "frontend" {
   metadata {
     name      = "frontend-sa"
-    namespace = kubernetes_namespace_v1.app.metadata[0].name
+    namespace = local.namespace_name
     labels = {
       app = "frontend"
     }
@@ -47,7 +50,7 @@ resource "kubernetes_service_account_v1" "frontend" {
 resource "kubernetes_service_account_v1" "mysql" {
   metadata {
     name      = "mysql-sa"
-    namespace = kubernetes_namespace_v1.app.metadata[0].name
+    namespace = local.namespace_name
     labels = {
       app = "mysql"
     }
@@ -57,7 +60,7 @@ resource "kubernetes_service_account_v1" "mysql" {
 resource "kubernetes_secret_v1" "app_secrets" {
   metadata {
     name      = "photowebapp-secrets"
-    namespace = kubernetes_namespace_v1.app.metadata[0].name
+    namespace = local.namespace_name
   }
 
   type = "Opaque"
@@ -76,7 +79,7 @@ resource "kubernetes_secret_v1" "app_secrets" {
 resource "kubernetes_persistent_volume_claim_v1" "mysql" {
   metadata {
     name      = "mysql-pvc"
-    namespace = kubernetes_namespace_v1.app.metadata[0].name
+    namespace = local.namespace_name
   }
 
   spec {
@@ -96,7 +99,7 @@ resource "kubernetes_persistent_volume_claim_v1" "mysql" {
 resource "kubernetes_deployment_v1" "mysql" {
   metadata {
     name      = "mysql"
-    namespace = kubernetes_namespace_v1.app.metadata[0].name
+    namespace = local.namespace_name
     labels = {
       app = "mysql"
     }
@@ -206,7 +209,7 @@ resource "kubernetes_deployment_v1" "mysql" {
 resource "kubernetes_service_v1" "mysql" {
   metadata {
     name      = "mysql"
-    namespace = kubernetes_namespace_v1.app.metadata[0].name
+    namespace = local.namespace_name
   }
 
   spec {
@@ -226,7 +229,7 @@ resource "kubernetes_service_v1" "mysql" {
 resource "kubernetes_deployment_v1" "backend" {
   metadata {
     name      = "backend"
-    namespace = kubernetes_namespace_v1.app.metadata[0].name
+    namespace = local.namespace_name
     labels = {
       app = "backend"
     }
@@ -336,7 +339,7 @@ resource "kubernetes_deployment_v1" "backend" {
 resource "kubernetes_service_v1" "backend" {
   metadata {
     name      = "backend"
-    namespace = kubernetes_namespace_v1.app.metadata[0].name
+    namespace = local.namespace_name
   }
 
   spec {
@@ -356,7 +359,7 @@ resource "kubernetes_service_v1" "backend" {
 resource "kubernetes_deployment_v1" "frontend" {
   metadata {
     name      = "frontend"
-    namespace = kubernetes_namespace_v1.app.metadata[0].name
+    namespace = local.namespace_name
     labels = {
       app = "frontend"
     }
@@ -442,7 +445,7 @@ resource "kubernetes_deployment_v1" "frontend" {
 resource "kubernetes_service_v1" "frontend" {
   metadata {
     name      = "frontend"
-    namespace = kubernetes_namespace_v1.app.metadata[0].name
+    namespace = local.namespace_name
   }
 
   spec {
@@ -467,7 +470,7 @@ resource "kubectl_manifest" "frontend_route" {
     kind: Route
     metadata:
       name: frontend
-      namespace: ${var.namespace}
+      namespace: ${local.namespace_name}
     spec:
       to:
         kind: Service
@@ -485,7 +488,7 @@ resource "kubectl_manifest" "frontend_route" {
 resource "kubernetes_network_policy_v1" "default_deny_ingress" {
   metadata {
     name      = "default-deny-ingress"
-    namespace = kubernetes_namespace_v1.app.metadata[0].name
+    namespace = local.namespace_name
   }
 
   spec {
@@ -497,7 +500,7 @@ resource "kubernetes_network_policy_v1" "default_deny_ingress" {
 resource "kubernetes_network_policy_v1" "allow_mysql_from_backend" {
   metadata {
     name      = "allow-mysql-from-backend"
-    namespace = kubernetes_namespace_v1.app.metadata[0].name
+    namespace = local.namespace_name
   }
 
   spec {
@@ -529,7 +532,7 @@ resource "kubernetes_network_policy_v1" "allow_mysql_from_backend" {
 resource "kubernetes_network_policy_v1" "allow_backend_from_frontend" {
   metadata {
     name      = "allow-backend-from-frontend"
-    namespace = kubernetes_namespace_v1.app.metadata[0].name
+    namespace = local.namespace_name
   }
 
   spec {
@@ -561,7 +564,7 @@ resource "kubernetes_network_policy_v1" "allow_backend_from_frontend" {
 resource "kubernetes_network_policy_v1" "allow_frontend_from_router" {
   metadata {
     name      = "allow-frontend-from-router"
-    namespace = kubernetes_namespace_v1.app.metadata[0].name
+    namespace = local.namespace_name
   }
 
   spec {
@@ -595,7 +598,7 @@ resource "kubernetes_horizontal_pod_autoscaler_v2" "frontend" {
 
   metadata {
     name      = "frontend-hpa"
-    namespace = kubernetes_namespace_v1.app.metadata[0].name
+    namespace = local.namespace_name
   }
 
   spec {
@@ -648,7 +651,7 @@ resource "kubernetes_horizontal_pod_autoscaler_v2" "backend" {
 
   metadata {
     name      = "backend-hpa"
-    namespace = kubernetes_namespace_v1.app.metadata[0].name
+    namespace = local.namespace_name
   }
 
   spec {

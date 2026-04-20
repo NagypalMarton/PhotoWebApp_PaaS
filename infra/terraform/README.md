@@ -25,6 +25,10 @@ Use the example file:
 2. fill in real credentials and secrets
 3. run Terraform from this directory
 
+By default `manage_namespace = false`, so Terraform deploys into an existing namespace (`var.namespace`) without trying to create it. This works with namespace-scoped tokens.
+
+Set `manage_namespace = true` only if the token has cluster-level permissions to create/manage namespaces.
+
 ## Local usage
 
 ```bash

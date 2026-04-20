@@ -7,6 +7,7 @@ replace-me
 EOF
 
 namespace           = "photowebapp"
+manage_namespace    = false
 mysql_database      = "photowebapp"
 mysql_user          = "photouser"
 mysql_password      = "replace-me"
