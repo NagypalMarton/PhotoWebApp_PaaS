@@ -97,6 +97,8 @@ resource "kubernetes_persistent_volume_claim_v1" "mysql" {
 }
 
 resource "kubernetes_deployment_v1" "mysql" {
+  wait_for_rollout = false
+
   metadata {
     name      = "mysql"
     namespace = local.namespace_name
@@ -227,6 +229,8 @@ resource "kubernetes_service_v1" "mysql" {
 }
 
 resource "kubernetes_deployment_v1" "backend" {
+  wait_for_rollout = false
+
   metadata {
     name      = "backend"
     namespace = local.namespace_name
@@ -357,6 +361,8 @@ resource "kubernetes_service_v1" "backend" {
 }
 
 resource "kubernetes_deployment_v1" "frontend" {
+  wait_for_rollout = false
+
   metadata {
     name      = "frontend"
     namespace = local.namespace_name

@@ -37,6 +37,8 @@ provider "kubernetes" {
 }
 
 provider "kubectl" {
+  apply_retry_count      = 5
+  load_config_file       = false
   host                   = var.openshift_server
   token                  = var.openshift_token
   cluster_ca_certificate = local.use_insecure_tls ? null : var.openshift_ca_cert
