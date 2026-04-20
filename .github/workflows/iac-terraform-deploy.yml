@@ -99,6 +99,10 @@ jobs:
           TF_VAR_openshift_token="$(printf '%s' "${TF_VAR_openshift_token}" | tr -d '\r\n' | xargs)"
           TF_VAR_namespace="$(printf '%s' "${TF_VAR_namespace}" | tr -d '\r\n' | xargs)"
           TF_VAR_openshift_ca_cert="$(printf '%s' "${TF_VAR_openshift_ca_cert}" | tr -d '\r')"
+          TF_VAR_mysql_database="$(printf '%s' "${TF_VAR_mysql_database}" | tr -d '\r\n' | xargs)"
+          TF_VAR_mysql_user="$(printf '%s' "${TF_VAR_mysql_user}" | tr -d '\r\n' | xargs)"
+          TF_VAR_mysql_password="$(printf '%s' "${TF_VAR_mysql_password}" | tr -d '\r\n' | xargs)"
+          TF_VAR_mysql_root_password="$(printf '%s' "${TF_VAR_mysql_root_password}" | tr -d '\r\n' | xargs)"
           
           export TF_VAR_openshift_server TF_VAR_openshift_token TF_VAR_namespace TF_VAR_openshift_ca_cert
           
@@ -227,6 +231,27 @@ jobs:
 
           if [ -z "${TF_VAR_openshift_token}" ]; then
             echo "TF_VAR_openshift_token is empty after normalization" >&2
+            exit 1
+          fi
+
+          # Validate MySQL image input constraints early to avoid pod crashloop.
+          if ! printf '%s' "${TF_VAR_mysql_database}" | grep -Eq '^[A-Za-z0-9_]+$'; then
+            echo "Invalid TF_VAR_mysql_database. Must match: ^[A-Za-z0-9_]+$" >&2
+            exit 1
+          fi
+
+          if ! printf '%s' "${TF_VAR_mysql_user}" | grep -Eq '^[A-Za-z0-9_]+$'; then
+            echo "Invalid TF_VAR_mysql_user. Must match: ^[A-Za-z0-9_]+$" >&2
+            exit 1
+          fi
+
+          if ! printf '%s' "${TF_VAR_mysql_password}" | grep -Eq '^[A-Za-z0-9_~!@#$%^&*()=<>,.?;:|+\-]+$'; then
+            echo "Invalid TF_VAR_mysql_password. Contains unsupported characters for the MySQL container image." >&2
+            exit 1
+          fi
+
+          if ! printf '%s' "${TF_VAR_mysql_root_password}" | grep -Eq '^[A-Za-z0-9_~!@#$%^&*()=<>,.?;:|+\-]+$'; then
+            echo "Invalid TF_VAR_mysql_root_password. Contains unsupported characters for the MySQL container image." >&2
             exit 1
           fi
           
