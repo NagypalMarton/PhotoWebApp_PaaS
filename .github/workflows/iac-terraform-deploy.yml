@@ -219,9 +219,25 @@ jobs:
           TF_VAR_openshift_token="${TF_VAR_openshift_token#\'}"
 
           export TF_VAR_openshift_server TF_VAR_openshift_token TF_VAR_namespace TF_VAR_openshift_ca_cert
+
+          if [ -z "${TF_VAR_openshift_server}" ] || [[ ! "${TF_VAR_openshift_server}" =~ ^https?:// ]]; then
+            echo "TF_VAR_openshift_server is empty or invalid: '${TF_VAR_openshift_server}'" >&2
+            exit 1
+          fi
+
+          if [ -z "${TF_VAR_openshift_token}" ]; then
+            echo "TF_VAR_openshift_token is empty after normalization" >&2
+            exit 1
+          fi
           
           echo "DEBUG apply: TF_VAR_openshift_server=${TF_VAR_openshift_server}"
           echo "DEBUG apply: TF_VAR_namespace=${TF_VAR_namespace}"
+
+          TF_PROVIDER_ARGS=(
+            "-var=openshift_server=${TF_VAR_openshift_server}"
+            "-var=openshift_token=${TF_VAR_openshift_token}"
+            "-var=namespace=${TF_VAR_namespace}"
+          )
 
           KCMD=(kubectl --kubeconfig "${KUBECONFIG_FILE}")
 
@@ -238,7 +254,7 @@ jobs:
 
             if "${KCMD[@]}" -n "${TF_VAR_namespace}" get "${kind}" "${name}" >/dev/null 2>&1; then
               echo "Importing existing ${kind}/${name} into ${address}"
-              terraform import "${address}" "${import_id}"
+              terraform import "${TF_PROVIDER_ARGS[@]}" "${address}" "${import_id}"
             else
               echo "${kind}/${name} not found in namespace ${TF_VAR_namespace}, Terraform will create it"
             fi
@@ -269,7 +285,7 @@ jobs:
             adopt_if_exists horizontalpodautoscaler backend-hpa kubernetes_horizontal_pod_autoscaler_v2.backend[0]
           fi
 
-          terraform apply -auto-approve
+          terraform apply "${TF_PROVIDER_ARGS[@]}" -auto-approve
 
       - name: Create Frontend Route (kubectl)
         shell: bash
