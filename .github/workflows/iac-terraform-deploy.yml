@@ -225,6 +225,81 @@ jobs:
           TF_VAR_openshift_token="${TF_VAR_openshift_token#\'}"
 
           export TF_VAR_openshift_server TF_VAR_openshift_token TF_VAR_namespace
+
+          KUBECONFIG_FILE="${RUNNER_TEMP}/kubeconfig"
+
+          if [ -n "${TF_VAR_openshift_ca_cert}" ]; then
+            CA_FILE="${RUNNER_TEMP}/openshift-ca.crt"
+            printf '%s\n' "${TF_VAR_openshift_ca_cert}" > "${CA_FILE}"
+            TLS_LINE="certificate-authority: ${CA_FILE}"
+          else
+            TLS_LINE="insecure-skip-tls-verify: true"
+          fi
+
+          cat > "${KUBECONFIG_FILE}" <<EOF
+          apiVersion: v1
+          kind: Config
+          clusters:
+            - name: target
+              cluster:
+                server: ${TF_VAR_openshift_server}
+                ${TLS_LINE}
+          users:
+            - name: token-user
+              user:
+                token: ${TF_VAR_openshift_token}
+          contexts:
+            - name: target-context
+              context:
+                cluster: target
+                user: token-user
+                namespace: ${TF_VAR_namespace}
+          current-context: target-context
+          EOF
+
+          chmod 600 "${KUBECONFIG_FILE}"
+          KCMD=(kubectl --kubeconfig "${KUBECONFIG_FILE}")
+
+          adopt_if_exists() {
+            local kind="$1"
+            local name="$2"
+            local address="$3"
+            local import_id="${TF_VAR_namespace}/${name}"
+
+            if terraform state show "${address}" >/dev/null 2>&1; then
+              echo "State already contains ${address}"
+              return
+            fi
+
+            if "${KCMD[@]}" -n "${TF_VAR_namespace}" get "${kind}" "${name}" >/dev/null 2>&1; then
+              echo "Importing existing ${kind}/${name} into ${address}"
+              terraform import "${address}" "${import_id}"
+            else
+              echo "${kind}/${name} not found in namespace ${TF_VAR_namespace}, Terraform will create it"
+            fi
+          }
+
+          adopt_if_exists serviceaccount backend-sa kubernetes_service_account_v1.backend
+          adopt_if_exists serviceaccount frontend-sa kubernetes_service_account_v1.frontend
+          adopt_if_exists serviceaccount mysql-sa kubernetes_service_account_v1.mysql
+          adopt_if_exists secret photowebapp-secrets kubernetes_secret_v1.app_secrets
+          adopt_if_exists persistentvolumeclaim mysql-pvc kubernetes_persistent_volume_claim_v1.mysql
+          adopt_if_exists service mysql kubernetes_service_v1.mysql
+          adopt_if_exists service backend kubernetes_service_v1.backend
+          adopt_if_exists service frontend kubernetes_service_v1.frontend
+          adopt_if_exists deployment mysql kubernetes_deployment_v1.mysql
+          adopt_if_exists deployment backend kubernetes_deployment_v1.backend
+          adopt_if_exists deployment frontend kubernetes_deployment_v1.frontend
+          adopt_if_exists networkpolicy default-deny-ingress kubernetes_network_policy_v1.default_deny_ingress
+          adopt_if_exists networkpolicy allow-mysql-from-backend kubernetes_network_policy_v1.allow_mysql_from_backend
+          adopt_if_exists networkpolicy allow-backend-from-frontend kubernetes_network_policy_v1.allow_backend_from_frontend
+          adopt_if_exists networkpolicy allow-frontend-from-router kubernetes_network_policy_v1.allow_frontend_from_router
+
+          if [ "${TF_VAR_enable_hpa}" = "true" ]; then
+            adopt_if_exists horizontalpodautoscaler frontend-hpa kubernetes_horizontal_pod_autoscaler_v2.frontend[0]
+            adopt_if_exists horizontalpodautoscaler backend-hpa kubernetes_horizontal_pod_autoscaler_v2.backend[0]
+          fi
+
           terraform apply -auto-approve
 
       - name: Verify OpenShift resources
