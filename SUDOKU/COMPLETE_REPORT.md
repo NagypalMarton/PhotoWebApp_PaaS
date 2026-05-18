@@ -116,6 +116,8 @@ bool Solver::isAllowed(char val, int x, int y) const {
 
 A párhuzamosítási döntést az alábbiak alapján hoztuk:
 
+Rövid szakmai indoklás: a first-level loop parallelism választása tudatos kompromisszum volt. Elsődleges cél az egyszerű, stabil és szálbiztos megvalósítás volt, amely minimális módosítással integrálható a meglévő soros backtracking algoritmusba. Emellett ez a stratégia jól demonstrálja a párhuzamos keresési algoritmusok alapvető kihívásait (load imbalance, korlátozott skálázódás, szinkronizációs költségek).
+
 ```cpp
 std::vector<Solver> Solver::solveAllParallel() const {
     std::vector<Solver> solutions;
@@ -276,7 +278,7 @@ $$E_p = \frac{S_p}{p} = \frac{T_1}{p \cdot T_p}$$
 
 **Forrás:** `easy.sdk`
 - **Tartalom:** 50 minimál Sudoku feladat
-- **Forrás:** Gordon Royle és G. Ralph Kuntz (https://github.com/grkuntzmd/sudoku)
+- **Forrás:** Gordon Royle és G. Ralph Kuntz klasszikus minimál Sudoku gyűjteményei
 - **Formátum:** SDK formátum (81 karakter, 0 = üres cella)
 
 **Méréshez választott feladatok:**
@@ -312,36 +314,32 @@ Az `analyze_benchmark.py` futása után az alábbi eredmények születtek:
 
 | Szálszám | Összes idő (ms) | Átlag (ms) | Speed-up | Efficiency |
 |:--------:|:---------------:|:----------:|:--------:|:----------:|
-| **1**    | 457.00          | 45.70      | 1.00     | **100.0%** |
-| **2**    | 310.00          | 31.00      | 1.47     | **73.7%**  |
-| **4**    | 371.00          | 37.10      | 1.23     | **30.8%**  |
-| **8**    | 329.00          | 32.90      | 1.39     | **17.4%**  |
+| **1**    | 457.0           | 45.7       | 1.0      | **100.0%** |
+| **2**    | 310.0           | 31.0       | 1.5      | **73.7%**  |
+| **4**    | 371.0           | 37.1       | 1.2      | **30.8%**  |
+| **8**    | 329.0           | 32.9       | 1.4      | **17.4%**  |
 
 ### 4.2 Mérési Eredmények Interpretációja
 
 #### 4.2.1 Kategorikus Elemzés
 
 ** 2 szál - Jó skálázódás**
-- Speed-up: **1.47×** (81% az ideális 2.0×-hoz képest)
-- Efficiency: **73.7%** (elfogadható)
-- **Megállapítás:** A párhuzamosítás hatékonyan működik
-- **Magyarázat:** Minimális szinkronizációs overhead; terhelés nagy részben egyensúlyban
+- Speed-up: **1.5×** (80% az ideális 2.0×-hoz képest)
+- Efficiency: **73.7%**
 
 **4 szál - Teljesítmény romlása**
-- Speed-up: **1.23×** (rosszabb, mint 2 szálon!)
-- Efficiency: **30.8%** (jelentős csökkenés)
-- **Probléma:** A terhelés-kiegyensúlyozatlansága és szinkronizációs overhead meghaladja a hasznot
-- **Időbeli adat:**
-  - 2 szál: 310 ms
-  - 4 szál: 371 ms (+20% lassabb!)
+- Speed-up: **1.2×** (rosszabb, mint 2 szálon!)
+- Efficiency: **30.8%**
 
 ** 8 szál - Szublineáris skálázódás és alacsony efficiency**
-- Speed-up: **1.39×** (még 4 szálon elért 1.23× alatt)
-- Efficiency: **17.4%** (alacsony kihasználási arány)
-- **Probléma:** Az OpenMP overhead és load imbalance dominál; korlátozott párhuzamos munkamennyiség az első szint párhuzamosítása miatt
-- **Megjegyzés:** 1.39× gyorsulás még mindig jelentősen jobb az 1 szálas baseline-nál (457 ms vs. 329 ms), de az extra szálak korlátozott párhuzamos terhet észlelnek
+- Speed-up: **1.4×**
+- Efficiency: **17.4%**
+
+Részletes értelmezés: lásd a 4.3.1, 4.3.2 és 4.3.3 alfejezeteket.
 
 ### 4.3 Problémaelemzés: Miért van romlás?
+
+HPC nézőpontból a skálázódási korlátok három komponensre bonthatók: **load imbalance** (4.3.1), **Amdahl-féle felső korlát** (4.3.2) és **szinkronizációs/runtime overhead** (4.3.3).
 
 #### 4.3.1 Párhuzamosítási Korlátok: First-Level Parallelism és Load Imbalance
 
@@ -363,13 +361,9 @@ Keresési fa szerkezete (maximum 9 párhuzamos ág):
       L1 L2      L8
 ```
 
-**HPC Perspektíva - Load Imbalance és CPU Kihasználtság:**
+**HPC Perspektíva - Load Imbalance és Work Distribution:**
 
-| Szálszám | Párhuzamos ágak | CPU Kihasználtság | Hatás |
-|:--------:|:---------------:|:------------------:|:------|
-| **2**    | 9 (max 2 aktív) | ~2/2 = 100%      | Jó: mindkét szál dolgozik |
-| **4**    | 9 (max 4 aktív) | ~2-3/4 = 50-75%  | 1-2 szál tétlen |
-| **8**    | 9 (max 8 aktív) | ~2-3/8 = 25-37%  | 5-6 szál tétlen |
+A keresési fa ágai eltérő mélységűek és eltérő constraint-sűrűséget tartalmaznak, ezért az egyes ágakhoz tartozó munkamennyiség nem homogén. Emiatt a work distribution természetes módon egyenetlenné válik: egyes szálak gyorsan végeznek, míg mások hosszabb ágakon dolgoznak.
 
 **Terhelés-kiegyensúlyozatlansága az ág-futási időkből:**
 
@@ -380,32 +374,18 @@ Az ágak futási ideje jelentősen eltér, amely nem mérhető előre:
 - **Futási idő variancia:** ~3-10x különbség az ágak között
 - Az `schedule(dynamic)` ezt csak részben tudja orvosolni, mert az ág hossza előre ismeretlen
 
-**Szálkihasználtság szálszám függvényében:**
+**Szálkihasználtság szálszám függvényében (kvalitatív):**
 
 Az első szint párhuzamosítása után minden szál egy-egy ágat dolgoz fel soros DFS-sel. Az ágak eltérő hossza miatt:
 
 1. Az egyes ágak (1, 2, 3) gyorsan befejezödnek
 2. A bennük dolgozó szálak **implicit barrier-nál várakoznak**
 3. Az utolsó (leghosszabb) ág (pl. 8 vagy 9) akár 10+ ms is lehet
-4. Az összes korábbi szál **idle állapotban várakozik**, amíg az utolsó szál befejeződik
+4. Az összes korábbi szál **várakozó állapotba kerül**, amíg a leghosszabb ág befejeződik
 
-**Empirikus Adat - CPU Kihasználtság Analízise:**
+Gyakorlati következményként a szálszám növelése nem garantál arányos gyorsulást: a domináns ágak futásideje meghatározza a teljes végrehajtási időt, miközben a többi szál részben kihasználatlan maradhat.
 
-```
-Futási idő szálszámonként:
-1 szál:  457 ms (soros feldolgozás, 100% CPU kihasználtság)
-2 szál:  310 ms (≈150% CPU utilization, ha ideális lenne)
-4 szál:  371 ms (csak 1.23× gyorsulás → alacsony kihasználtság)
-8 szál:  329 ms (csak 1.39× gyorsulás → nagyon alacsony kihasználtság)
-```
-
-**Potenciális CPU-mag utilization szálszámonként:**
-
-- **2 szál:** 457 ms / (2 × 310 ms) = 0.737 = **73.7% efficiency** ✅ (közel az ideálishoz)
-- **4 szál:** 457 ms / (4 × 371 ms) = 0.308 = **30.8% efficiency** (3 szál átlagosan 75% idle)
-- **8 szál:** 457 ms / (8 × 329 ms) = 0.174 = **17.4% efficiency** (6-7 szál átlagosan 80-90% idle)
-
-**Következtetés az Load Imbalance-ról:**
+**Következtetés a Load Imbalance-ról:**
 
 Az első szint maximum **9 párhuzamos ágat** biztosít, így 8 szálnál már több szál van, mint elérhető párhuzamos munkamennyiség. A terhelés-kiegyensúlyozatlansága pedig (ágak eltérő futási ideje miatt) azt eredményezi, hogy:
 
@@ -413,7 +393,7 @@ Az első szint maximum **9 párhuzamos ágat** biztosít, így 8 szálnál már 
 - Az összes többi szál az implicit barrier-nél tétlenül várakozik
 - A rendelkezésre álló CPU-magok nagy része kihasználatlan marad
 
-Dieser **load imbalance a skálázódás fő korlátja** az OpenMP overhead-et és szinkronizációs költségeket megelőzően.
+Ez a **load imbalance a skálázódás elsődleges korlátja**, amelyhez másodlagosan OpenMP overhead és szinkronizációs költségek társulnak.
 
 #### 4.3.2 Amdahl-törvény Korlátja
 
@@ -429,21 +409,20 @@ ahol:
 
 Az implementáció **az első elágazást párhuzamosítja**, de az első cella 9 értéke után a keresési fa egyes ágaiban még mély **soros DFS keresés** zajlik (`collectSolutionsSequential`). Ez azt jelenti:
 
-1. **Párhuzamosított rész:** Az első szint (9 ág előállítása) = ~10-30% a munkaidőből
-2. **Soros rész:** Mélyebb szinteken futó rekurzív backtracking = ~70-90% a munkaidőből
+1. **A párhuzamos munka korlátozott szerkezetű:** a párhuzamosítás főként a keresési fa felső szintjén történik.
+2. **A mélyebb keresés nagyrészt soros jellegű:** az ágakon belül futó DFS jelentős része nem párhuzamosul ebben a kialakításban.
+
+Fontos, hogy az Amdahl-féle $f$ paraméter ebben az implementációban **nem közvetlenül mérhető**. A ténylegesen megfigyelt futásidőből csak közvetett következtetések tehetők, amelyek erősen függnek a bemeneti feladatoktól, az ütemezéstől és a futtatási környezettől.
 
 Amdahl törvénye tehát azt mondja ki, hogy az Amdahl-féle felső korlát:
 
 $$S_p \leq \frac{1}{(1-f) + \frac{f}{p}}$$
 
-Ha az ágak között jelentős **load imbalance** van (különböző hosszúságú keresési fák), akkor az effektív párhuzamosítható rész ($f_{eff}$) még az ideálisan egyensúlyozott esetnél is **alacsonyabb** lesz.
+Az Amdahl-modell itt elméleti felső korlátot ad; a tényleges gyorsulás ettől tipikusan elmarad. Ennek gyakorlati okai a 4.3.1 és 4.3.3 alfejezetekben részletezett load-balancing és runtime tényezők.
 
-**A gyakorlat:**
-- **2 szál:** Az 1.47× speedup azt mutatja, hogy az effektív párhuzamos rész az Amdahl-törvény szerinti 2 szál esetén még mintegy ~30-40% körül mozog (figyelembe véve az overhead-et)
-- **4 szál:** Az 1.23× speedup már nem lineáris → az effektív párhuzamos rész drasztikusan csökken
-- **8 szál:** Az 1.39× speedup az összes overhead és versengés miatt még alacsonyabb az ideálisnál
+**Mért trend:** 2 szálnál mérsékelt gyorsulás, 4 és 8 szálnál szublineáris skálázódás figyelhető meg, összhangban az elméleti korláttal.
 
-**Következtetés:** Az Amdahl-törvény nem csak az elméleti korlátot jelöli ki, hanem azt is magyarázza, hogy miért nem lehet lineáris gyorsulást elérni: a soros DFS részek és az overhead nagy része miatt az effektív párhuzamosíthatóság szálszám növekedésével csökken.
+**Következtetés:** Az Amdahl-modell ebben a projektben elsősorban **elméleti felső korlátként** értelmezendő.
 
 #### 4.3.3 Szinkronizációs Overhead
 
@@ -465,7 +444,9 @@ Ha az ágak között jelentős **load imbalance** van (különböző hosszúság
 **Empirikus hatás:**
 - 2 szál: alacsony contention → jó efficiency (73.7%)
 - 4 szál: közepes contention → leromlott efficiency (30.8%)
-- 8 szál: magas contention → rossz efficiency (17.4%)
+- 8 szál: alacsony efficiency (17.4%); növekvő contention és runtime overhead
+
+Megjegyzés: a skálázódás teljes képéhez a 4.3.1 (load imbalance) és 4.3.2 (Amdahl-korlát) alfejezetek együtt értelmezendők.
 
 ---
 
@@ -476,135 +457,34 @@ Ha az ágak között jelentős **load imbalance** van (különböző hosszúság
 #### 5.1.1 Task-alapú Párhuzamosítás (Ajánlott)
 
 ```cpp
-std::vector<Solver> Solver::solveAllParallel() const {
-    std::vector<Solver> solutions;
-    
+// Pszeudokód: task-alapú keresés váz
 #pragma omp parallel
-    {
 #pragma omp single
-        {
-            taskGenerateAndSolve(*this, solutions);
-        }
-    }
-    
-    return solutions;
-}
+search(root, depth = 0)
 
-void Solver::taskGenerateAndSolve(const Solver& current,
-                                  std::vector<Solver>& solutions) {
-    if (!current.isValidBoard()) return;
-    
-    int x = 0, y = 0;
-    if (!current.findFirstEmpty(x, y)) {
-        // Megoldás!
-        solutions.push_back(current);
-        return;
-    }
-    
-    for (int n = 1; n <= 9; ++n) {
-        if (!current.isAllowed(static_cast<char>(n), x, y)) continue;
-        
-        Solver next(current);
-        next.set(static_cast<char>(n), x, y);
-        
-#pragma omp task
-        {
-            // Soros vagy rekurzívan párhuzamos?
-            if (depth <= PARALLEL_DEPTH) {
-                taskGenerateAndSolve(next, solutions);  // Rekurzív párhuzamosítás
-            } else {
-                next.collectSolutionsSequential(solutions);  // Soros
-            }
-        }
-    }
-    
-#pragma omp taskwait
-}
+function search(node, depth):
+    if solved(node):
+        record_solution(node)
+        return
+
+    for child in expand(node):
+        #pragma omp task if(depth < TASK_DEPTH)
+        search(child, depth + 1)
+
+    #pragma omp taskwait
 ```
 
-**Előnyök:**
-- ✅ Keresési fa mélyén párhuzamosít, nem csak az első szinten
-- ✅ Jobb terhelés-kiegyensúlyozás (work stealing)
-- ✅ Méretezhető 8+ szálakra
-- ✅ Modern OpenMP (4.0+) feature
+Ez a minta koncepcionálisan azt mutatja, hogy a keresési fa részfeladatai dinamikus taskokként ütemezhetők, nem fix ciklus-iterációként. A task scheduler és work stealing általában jobb terheléselosztást ad heterogén ágak esetén. A `TASK_DEPTH` korlátozás célja, hogy a mély szinteken ne a task-overhead domináljon.
 
-#### 5.1.2 Mélyebb Párhuzamosítás: OpenMP Tasks (Ajánlott Megközelítés)
+#### 5.1.2 Mélyebb Párhuzamosítás: OpenMP Taskok (Preferált Modern Stratégia)
 
-**Miért nem nested parallel regionök?**
+A mélyebb rekurzív párhuzamosításhoz a preferált megközelítés az **OpenMP task-alapú** modell. Ennek oka, hogy a keresési fa természetes módon sok, eltérő költségű részfeladatra bontható, amit a task scheduler rugalmasabban oszt el a szálak között.
 
-Az alábbi megközelítés **nem ajánlott**:
+**Preferált megközelítés: task-alapú rekurzió**
 
-```cpp
-#pragma omp parallel if(depth <= 2)
-{
-    // ❌ Nested parallel regionök
-    // Potenciálisan sok szálkészítési overhead
-    // Rossz terheléselosztás
-}
-```
+A fenti pszeudokód szerkezete elegendő a koncepcióhoz: `parallel + single` indítás, rekurzív `task` létrehozás, majd `taskwait` szinkronizáció. Így a mélyebb párhuzamosítás anélkül valósítható meg, hogy nested parallel regionöket kellene használni.
 
-A beágyazott (`nested`) OpenMP párhuzamos regionök **jelentős overheaddel járnak**:
-- Szálak dinamikus létrehozása és megsemmisítése szint alacsonyabban
-- A szálkészítési/megsemmisítési költség gyakran meghaladja a párhuzamos munkát
-- Terheléselosztás korlátozott (explicit szálcsoportok rögzített mérete)
-
-**Preferált megközelítés: OpenMP Task-Based Recursion**
-
-Az OpenMP 4.0+ task-alapú modell **sokkal hatékonyabb** a rekurzív keresési fákhoz:
-
-```cpp
-void Solver::taskGenerateAndSolve(const Solver& current,
-                                  std::vector<Solver>& solutions,
-                                  int depth) {
-    if (!current.isValidBoard()) return;
-    
-    int x = 0, y = 0;
-    if (!current.findFirstEmpty(x, y)) {
-        // Megoldás!
-        solutions.push_back(current);
-        return;
-    }
-    
-    for (int n = 1; n <= 9; ++n) {
-        if (!current.isAllowed(static_cast<char>(n), x, y)) continue;
-        
-        Solver next(current);
-        next.set(static_cast<char>(n), x, y);
-        
-        // OpenMP task-alapú párhuzamosítás
-        // Korai szintek párhuzamosítása, mélyebb szintek soros feldolgozása
-#pragma omp task if(depth < 4)  // Csak az első 4 szint párhuzamos
-        {
-            if (depth < 2) {
-                // Magasabb szintek: rekurzív párhuzamosítás (több task)
-                taskGenerateAndSolve(next, solutions, depth + 1);
-            } else {
-                // Mélyebb szintek: soros keresés az overhead elkerüléshez
-                next.collectSolutionsSequential(solutions);
-            }
-        }
-    }
-    
-#pragma omp taskwait
-}
-```
-
-**OpenMP Task Alapú Megközelítés Előnyei:**
-
-| Aspektus | Task-Based | Nested Parallel |
-|----------|:----------:|:---------------:|
-| **Overhead** | Alacsony | Magas |
-| **Load balancing** | Work stealing | Rögzített szálszám |
-| **Skalázódás** | 8+ szálra jó | Szálszám növekedésével romlik |
-| **OpenMP verzió** | 3.0+ | Szintén 3.0+, de rosszabb |
-| **Memória** | Dinamikus task queue | Szálvektor hossza = rögzített |
-
-**Magyarázat az `if(depth < 4)` klózról:**
-
-- `depth < 4`: csak az első 4 szint párhuzamos (szintén 1-4. szint)
-- Mélyebb szintek (`depth >= 4`) soros keresést használnak
-- Ezáltal csökken a task-kernel overhead az exponenciálisan növekvő mély szinteken
-- **Empirikus heurisztika:** 4 szintnél már `9^4 = 6561` lehetséges ág, ami elegendő a terheléselosztáshoz
+Rövid háttér: a task-alapú modell heterogén ágköltségek mellett általában jobb load balancinget ad, mert a futtató környezet dinamikusan osztja újra a munkát. A nested parallel regionök ezzel szemben gyakran nagyobb runtime overheaddel járnak rekurzív keresésnél.
 
 #### 5.1.3 Hibrid Terheléselosztási Stratégia
 
@@ -669,22 +549,22 @@ Várható teljesítmény: **2-4× speed-up** 8 szálakkal
 ### 6.2 Teljesítmény Összegzése
 
 - **Minimum speed-up:** 1 (1 szál = soros)
-- **Maximum speed-up:** 1.47× (2 szál)
-- **Kihasználatlan potenciál:** 8 magos rendszer csak 1.39× gyorsulást ér el
+- **Maximum speed-up:** 1.5× (2 szál)
+- **Kihasználatlan potenciál:** 8 magos rendszer csak 1.4× gyorsulást ér el
 
 ### 6.3 Tanulságok
 
 1. **A párhuzamosítás nem egyenlő lineáris speed-up-pal**
-   - A terhelés-kiegyensúlyozás kritikus
+    - Részletek: 4.3.1 és 4.3.2
 
 2. **Az Amdahl-törvény nem "csak elmélet"**
-   - A gyakorlati mérések alátámasztják az elméleti korlátokat
+    - A mérések összhangban vannak a felső korláttal
 
 3. **Az OpenMP egyszerűsége költsége**
-   - Az #pragma omp for Schedule(dynamic) nem elég a mélyebb párhuzamosításhoz
+    - Részletek: 4.3.3 és 5.1
 
 4. **A szálszám növekedése nem automatikus gyorsulás**
-   - Versengés és overhead nő
+    - Kvalitatív okok: 4.3 alfejezetek
 
 ### 6.4 Praktikus Ajánlás
 
@@ -694,7 +574,7 @@ Várható teljesítmény: **2-4× speed-up** 8 szálakkal
 - Potenciális speed-up: 3-4×
 
 **Ha 2-4 szál elegendő:**
-- A jelenlegi megvalósítás elfogadható (73% efficiency 2 szálon)
+- A jelenlegi megvalósítás elfogadható (73.7% efficiency 2 szálon)
 
 ---
 
@@ -712,16 +592,16 @@ Várható teljesítmény: **2-4× speed-up** 8 szálakkal
 
 ### 7.2 Teljesítmény Eredmények
 
-- **2 szál:** 1.47× speed-up, 73.7% efficiency
-- **4 szál:** 1.23× speed-up, 30.8% efficiency
-- **8 szál:** 1.39× speed-up, 17.4% efficiency
+- **2 szál:** 1.5× speed-up, 73.7% efficiency
+- **4 szál:** 1.2× speed-up, 30.8% efficiency
+- **8 szál:** 1.4× speed-up, 17.4% efficiency
 
 ### 7.3 Fő Megállapítások
 
 1. A projekt sikeresen implementálja a párhuzamos Sudoku megoldót
 2. OpenMP párhuzamosítás működik (biztonságos szálmegvalósítás)
-3. Terhelés-kiegyensúlyozatlansága korlátoz
-4. Az Amdahl-törvény magyarázza a korlátokat
+3. A skálázódást a 4.3 fejezetben részletezett tényezők korlátozzák
+4. Az Amdahl-törvény elméleti felső korlátot ad a mért viselkedésre
 5. A mérési metodológia és analízis reprodukálható
 
 ### 7.4 Benyújtott Anyagok Összegzése
@@ -753,14 +633,9 @@ python3 analyze_benchmark.py  # Eredmények elemzése
 
 ## 8. Referenciák
 
-- **OpenMP Dokumentáció:** https://www.openmp.org/spec-html/5.0/
-- **Amdahl-törvény:** https://en.wikipedia.org/wiki/Amdahl%27s_law
-- **Sudoku Backtracking:** Donald Knuth - The Art of Computer Programming
-- **Parallelization Best Practices:** https://computing.llnl.gov/tutorials/openMP/
-- **Speed-up és Efficiency:** https://en.wikipedia.org/wiki/Speedup
-- **Sudoku Teszt Készlet:** 
-  - Gordon Royle: https://github.com/codesolving/sudoku
-  - G. Ralph Kuntz: https://github.com/grkuntzmd/sudoku
+1. OpenMP Architecture Review Board. *OpenMP API Specification*, Version 5.0. https://www.openmp.org/spec-html/5.0/
+2. Amdahl, G. M. (1967). *Validity of the Single Processor Approach to Achieving Large Scale Computing Capabilities*. AFIPS Conference Proceedings.
+3. Knuth, D. E. *The Art of Computer Programming*. Addison-Wesley.
 
 ---
 
