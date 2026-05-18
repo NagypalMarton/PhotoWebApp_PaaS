@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "make": true,
+        "ForEach-Object": true,
+        "Resolve-Path": true,
+        "New-Object": true
+    }
+}
