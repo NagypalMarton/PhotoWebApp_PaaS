@@ -15,10 +15,10 @@ A projekt egy **párhuzamos Sudoku megoldót** implementál C++ és OpenMP felha
 - Több megoldás keresése és megtalálása
 
 **Megvalósított követelmények:**
-- ✅ 9×9-es tábla megoldása
-- ✅ OpenMP alapú párhuzamosítás
-- ✅ Párhuzamos megoldáskereső algoritmus
-- ✅ Mérési és benchmarkolási infrastruktúra
+- 9×9-es tábla megoldása
+- OpenMP alapú párhuzamosítás
+- Párhuzamos megoldáskereső algoritmus
+- Mérési és benchmarkolási infrastruktúra
 
 ### 1.2 Benyújtandó Anyagok
 
@@ -178,20 +178,20 @@ std::vector<Solver> Solver::solveAllParallel() const {
 
 | Aspektus | Előny | Hátrány |
 |----------|-------|---------|
-| **Implementáció** | ✅ Egyszerű, szálbiztos | Korlátozott mélyebb párhuzamosítás |
-| **Terhelés-eloszlás** | ✅ Kezdeti 9 ág | ❌ Ágak eltérő hossza miatt kiegyensúlyozatlansága |
-| **Overhead** | ✅ Minimális szinkronizáció | ❌ Teljes tábla másolatok memória költsége |
-| **Skalázódás** | ✅ 2-4 szál | ❌ 8+ szál esetén romlás |
+| **Implementáció** | Egyszerű, szálbiztos | Korlátozott mélyebb párhuzamosítás |
+| **Terhelés-eloszlás** | Kezdeti 9 ág | Ágak eltérő hossza miatt kiegyensúlyozatlansága |
+| **Overhead** | Minimális szinkronizáció | Teljes tábla másolatok memória költsége |
+| **Skalázódás** | 2-4 szál | 8+ szál esetén romlás |
 
 #### 2.3.1 Szakmai Indoklás: Tudatos Kompromisszum
 
 A first-level loop parallelism választása **tudatos kompromisszum** volt az alábbi célokkal:
 
 **Megvalósítási Szempont:**
-- ✅ **Egyszerűség és Stabilitás:** Minimális kódmódosítás a meglévő soros backtracking algoritmushoz
-- ✅ **Szálbiztosság:** Teljes tábla másolatok => nincs versengés (race condition) a megosztott adatokért
-- ✅ **Integráció:** Az `#pragma omp for` és `#pragma omp critical` alapkonstrukciók, könnyen érthető kód
-- ✅ **Megbízhatóság:** Nem függünk komplex OpenMP features-öktől (pl. nested parallelism, task scheduling)
+- **Egyszerűség és Stabilitás:** Minimális kódmódosítás a meglévő soros backtracking algoritmushoz
+- **Szálbiztosság:** Teljes tábla másolatok => nincs versengés (race condition) a megosztott adatokért
+- **Integráció:** Az `#pragma omp for` és `#pragma omp critical` alapkonstrukciók, könnyen érthető kód
+- **Megbízhatóság:** Nem függünk komplex OpenMP features-öktől (pl. nested parallelism, task scheduling)
 
 **Pedagógiai és Kutatási Szempont:**
 - **Demonstráció:** A párhuzamos keresési algoritmusok fundamentális problémáit tárja fel:
@@ -205,10 +205,10 @@ A first-level loop parallelism választása **tudatos kompromisszum** volt az al
 
 | Kompromisszum | Előny | Hátrány | Indoklás |
 |:-------------|:----:|:-------:|:---------|
-| **Nem task-based** | ✅ Egyszerű | ❌ Csak 1 szint párhuzamos | Alapimplementáció stabilitása |
-| **Teljes másolat** | ✅ Szálbiztos | ❌ Memória overhead | Versengés-mentesség |
-| **Schedule(dynamic)** | ✅ Terheléselosztás | ❌ Overhead | Ág-hossz variancia |
-| **Implicit barrier** | ✅ Szinkronizáció nélkül | ❌ Load imbalance | Szálbiztosság |
+| **Nem task-based** | Egyszerű | Csak 1 szint párhuzamos | Alapimplementáció stabilitása |
+| **Teljes másolat** | Szálbiztos | Memória overhead | Versengés-mentesség |
+| **Schedule(dynamic)** | Terheléselosztás | Overhead | Ág-hossz variancia |
+| **Implicit barrier** | Szinkronizáció nélkül | Load imbalance | Szálbiztosság |
 
 **Konklúzió:**
 
@@ -321,13 +321,13 @@ Az `analyze_benchmark.py` futása után az alábbi eredmények születtek:
 
 #### 4.2.1 Kategorikus Elemzés
 
-**✅ 2 szál - Jó skálázódás**
+** 2 szál - Jó skálázódás**
 - Speed-up: **1.47×** (81% az ideális 2.0×-hoz képest)
 - Efficiency: **73.7%** (elfogadható)
 - **Megállapítás:** A párhuzamosítás hatékonyan működik
 - **Magyarázat:** Minimális szinkronizációs overhead; terhelés nagy részben egyensúlyban
 
-**⚠️ 4 szál - Teljesítmény romlása**
+**4 szál - Teljesítmény romlása**
 - Speed-up: **1.23×** (rosszabb, mint 2 szálon!)
 - Efficiency: **30.8%** (jelentős csökkenés)
 - **Probléma:** A terhelés-kiegyensúlyozatlansága és szinkronizációs overhead meghaladja a hasznot
@@ -335,7 +335,7 @@ Az `analyze_benchmark.py` futása után az alábbi eredmények születtek:
   - 2 szál: 310 ms
   - 4 szál: 371 ms (+20% lassabb!)
 
-**⚠️ 8 szál - Szublineáris skálázódás és alacsony efficiency**
+** 8 szál - Szublineáris skálázódás és alacsony efficiency**
 - Speed-up: **1.39×** (még 4 szálon elért 1.23× alatt)
 - Efficiency: **17.4%** (alacsony kihasználási arány)
 - **Probléma:** Az OpenMP overhead és load imbalance dominál; korlátozott párhuzamos munkamennyiség az első szint párhuzamosítása miatt
@@ -367,9 +367,9 @@ Keresési fa szerkezete (maximum 9 párhuzamos ág):
 
 | Szálszám | Párhuzamos ágak | CPU Kihasználtság | Hatás |
 |:--------:|:---------------:|:------------------:|:------|
-| **2**    | 9 (max 2 aktív) | ~2/2 = 100%      | ✅ Jó: mindkét szál dolgozik |
-| **4**    | 9 (max 4 aktív) | ~2-3/4 = 50-75%  | ⚠️ 1-2 szál tétlen |
-| **8**    | 9 (max 8 aktív) | ~2-3/8 = 25-37%  | ❌ 5-6 szál tétlen |
+| **2**    | 9 (max 2 aktív) | ~2/2 = 100%      | Jó: mindkét szál dolgozik |
+| **4**    | 9 (max 4 aktív) | ~2-3/4 = 50-75%  | 1-2 szál tétlen |
+| **8**    | 9 (max 8 aktív) | ~2-3/8 = 25-37%  | 5-6 szál tétlen |
 
 **Terhelés-kiegyensúlyozatlansága az ág-futási időkből:**
 
@@ -593,11 +593,11 @@ void Solver::taskGenerateAndSolve(const Solver& current,
 
 | Aspektus | Task-Based | Nested Parallel |
 |----------|:----------:|:---------------:|
-| **Overhead** | ✅ Alacsony | ❌ Magas |
-| **Load balancing** | ✅ Work stealing | ⚠️ Rögzített szálszám |
-| **Skalázódás** | ✅ 8+ szálra jó | ❌ Szálszám növekedésével romlik |
-| **OpenMP verzió** | ✅ 3.0+ | Szintén 3.0+, de rosszabb |
-| **Memória** | ✅ Dinamikus task queue | ⚠️ Szálvektor hossza = rögzített |
+| **Overhead** | Alacsony | Magas |
+| **Load balancing** | Work stealing | Rögzített szálszám |
+| **Skalázódás** | 8+ szálra jó | Szálszám növekedésével romlik |
+| **OpenMP verzió** | 3.0+ | Szintén 3.0+, de rosszabb |
+| **Memória** | Dinamikus task queue | Szálvektor hossza = rögzített |
 
 **Magyarázat az `if(depth < 4)` klózról:**
 
@@ -662,9 +662,9 @@ Várható teljesítmény: **2-4× speed-up** 8 szálakkal
 | Szálszám | Efficiency | Skalázódás | Ajánlás |
 |:--------:|:----------:|:----------:|----------|
 | **1**    | 100.0%     | Baseline   | Referencia pont |
-| **2**    | 73.7%      | ✅ Jó     | Ajánlott |
-| **4**    | 30.8%      | ⚠️ Csökkenő | Korlátolt párhuzamos rész miatt |
-| **8**    | 17.4%      | ❌ Szublineáris | Overhead dominál; korlátozottan javasolt |
+| **2**    | 73.7%      | Jó     | Ajánlott |
+| **4**    | 30.8%      | Csökkenő | Korlátolt párhuzamos rész miatt |
+| **8**    | 17.4%      | Szublineáris | Overhead dominál; korlátozottan javasolt |
 
 ### 6.2 Teljesítmény Összegzése
 
@@ -704,25 +704,25 @@ Várható teljesítmény: **2-4× speed-up** 8 szálakkal
 
 | Aspektus | Státusz | Megjegyzés |
 |----------|---------|-----------|
-| **Alapfeladat** | ✅ Kész | 9×9 Sudoku megoldása működik |
-| **Párhuzamosítás** | ✅ Kész | OpenMP alapú (szálbiztos) |
-| **Mérés** | ✅ Kész | Automatizált benchmark és analízis |
-| **Dokumentáció** | ✅ Kész | Ez a jelentés |
-| **Teszt adatok** | ✅ Kész | 50 minimál feladat |
+| **Alapfeladat** | Kész | 9×9 Sudoku megoldása működik |
+| **Párhuzamosítás** | Kész | OpenMP alapú (szálbiztos) |
+| **Mérés** | Kész | Automatizált benchmark és analízis |
+| **Dokumentáció** | Kész | Ez a jelentés |
+| **Teszt adatok** | Kész | 50 minimál feladat |
 
 ### 7.2 Teljesítmény Eredmények
 
-- **2 szál:** 1.47× speed-up, 73.7% efficiency ✅
-- **4 szál:** 1.23× speed-up, 30.8% efficiency ⚠️
-- **8 szál:** 1.39× speed-up, 17.4% efficiency ❌
+- **2 szál:** 1.47× speed-up, 73.7% efficiency
+- **4 szál:** 1.23× speed-up, 30.8% efficiency
+- **8 szál:** 1.39× speed-up, 17.4% efficiency
 
 ### 7.3 Fő Megállapítások
 
-1. ✅ A projekt sikeresen implementálja a párhuzamos Sudoku megoldót
-2. ✅ OpenMP párhuzamosítás működik (biztonságos szálmegvalósítás)
-3. ⚠️ Terhelés-kiegyensúlyozatlansága korlátoz
-4. ⚠️ Az Amdahl-törvény magyarázza a korlátokat
-5. 📊 A mérési metodológia és analízis reprodukálható
+1. A projekt sikeresen implementálja a párhuzamos Sudoku megoldót
+2. OpenMP párhuzamosítás működik (biztonságos szálmegvalósítás)
+3. Terhelés-kiegyensúlyozatlansága korlátoz
+4. Az Amdahl-törvény magyarázza a korlátokat
+5. A mérési metodológia és analízis reprodukálható
 
 ### 7.4 Benyújtott Anyagok Összegzése
 
